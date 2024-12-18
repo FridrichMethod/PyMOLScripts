@@ -3,7 +3,8 @@ util.performance(0)
 space cmyk
 
 set ambient, 0.3
-set antialias, 2
+set antialias, 3
+set antialias_shader, 2
 set async_builds, 1
 set backface_cull, 1
 set bg_rgb, white
@@ -17,7 +18,7 @@ set cartoon_ring_finder, 1
 set cartoon_ring_mode, 3
 set cartoon_ring_transparency, 0.5
 set cartoon_ring_width, 0.1
-set cartoon_sampling, 20 
+set cartoon_sampling, 20
 set cartoon_side_chain_helper, 1
 set defer_builds_mode, 3
 set depth_cue, 0
@@ -55,5 +56,6 @@ set transparency_mode, 2
 set two_sided_lighting, 1
 set valence, 1
 set valence_mode, 1
+set volume_layers, 1000
 
 cd ~/Downloads
