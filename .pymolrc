@@ -1,0 +1,59 @@
+util.performance(0)
+
+space cmyk
+
+set ambient, 0.3
+set antialias, 2
+set async_builds, 1
+set backface_cull, 1
+set bg_rgb, white
+set cartoon_ladder_mode, 1
+set cartoon_loop_radius, 0.2
+set cartoon_nucleic_acid_mode, 4
+set cartoon_oval_quality, 100
+set cartoon_oval_width, 0.2
+set cartoon_rect_width, 0.2
+set cartoon_ring_finder, 1
+set cartoon_ring_mode, 3
+set cartoon_ring_transparency, 0.5
+set cartoon_ring_width, 0.1
+set cartoon_sampling, 20 
+set cartoon_side_chain_helper, 1
+set defer_builds_mode, 3
+set depth_cue, 0
+set direct, 0.5
+set draw_mode, 2
+set fog, 0
+set hash_max, 16000
+set light_count, 8
+set nb_spheres_quality, 3
+set opaque_background, 0
+set orthoscopic, 1
+set power, 1
+set ray_opaque_background, 0
+set ray_orthoscopic, 1
+set ray_shadow, 0
+set ray_shadow_decay_factor, 0
+set ray_trace_disco_factor, 1
+set ray_trace_fog, 0
+set ray_trace_gain, 0.1
+set ray_trace_mode, 1
+set reflect, 0.5
+set spec_count, -1
+set spec_direct, 0
+set spec_direct_power, 1
+set spec_power, 1
+set spec_reflect, 0
+set specular, 1
+set specular_intensity, 1
+set sphere_quality, 2
+set surface_quality, 1
+set surface_ramp_above_mode, 1
+set surface_smooth_edges, 1
+set transparency, 0.5
+set transparency_mode, 2
+set two_sided_lighting, 1
+set valence, 1
+set valence_mode, 1
+
+cd ~/Downloads
