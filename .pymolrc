@@ -3,7 +3,7 @@ util.performance(0)
 space cmyk
 
 set ambient, 0.3
-set antialias, 3
+set antialias, 3  # may be very slow
 set antialias_shader, 2
 set async_builds, 1
 set backface_cull, 1
@@ -40,6 +40,7 @@ set ray_trace_fog, 0
 set ray_trace_gain, 0.1
 set ray_trace_mode, 1
 set reflect, 0.5
+set ribbon_sampling, 20
 set spec_count, -1
 set spec_direct, 0
 set spec_direct_power, 1
