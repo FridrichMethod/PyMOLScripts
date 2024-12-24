@@ -3,7 +3,7 @@ util.performance(0)
 space cmyk
 
 set ambient, 0.3
-set antialias, 3  # may be very slow
+set antialias, 3
 set antialias_shader, 2
 set async_builds, 1
 set backface_cull, 1
@@ -23,7 +23,7 @@ set cartoon_side_chain_helper, 1
 set defer_builds_mode, 3
 set depth_cue, 0
 set direct, 0.5
-set draw_mode, 2
+set draw_mode, 1
 set fog, 0
 set hash_max, 16000
 set light_count, 8
