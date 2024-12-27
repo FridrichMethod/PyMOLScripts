@@ -59,4 +59,6 @@ set valence, 1
 set valence_mode, 1
 set volume_layers, 1000
 
+valence guess, all
+
 cd ~/Downloads
