@@ -2,7 +2,9 @@ util.performance(0)
 
 space cmyk
 
-set ambient, 0.3
+set ambient, 0.33
+set ambient_occlusion_mode, 0
+set ambient_occlusion_smooth, 25
 set antialias, 2
 set antialias_shader, 2
 set async_builds, 1
@@ -30,11 +32,12 @@ set light_count, 8
 set nb_spheres_quality, 3
 set opaque_background, 0
 set orthoscopic, 1
-set power, 1
+set power, 0
 set ray_opaque_background, 0
 set ray_orthoscopic, 1
 set ray_shadow, 0
 set ray_shadow_decay_factor, 0
+set ray_trace_depth_factor, 0
 set ray_trace_disco_factor, 1
 set ray_trace_fog, 0
 set ray_trace_gain, 0.1
@@ -44,10 +47,10 @@ set ribbon_sampling, 20
 set spec_count, -1
 set spec_direct, 0
 set spec_direct_power, 1
-set spec_power, 1
+set spec_power, 0
 set spec_reflect, 0
-set specular, 1
-set specular_intensity, 1
+set specular, 0
+set specular_intensity, 0.5
 set sphere_quality, 2
 set surface_quality, 1
 set surface_ramp_above_mode, 1
