@@ -2,9 +2,10 @@ util.performance(0)
 
 space cmyk
 
-set ambient, 0.33
-set ambient_occlusion_mode, 0
-set ambient_occlusion_smooth, 25
+set ambient, 0.25
+set ambient_occlusion_mode, 1
+set ambient_occlusion_scale, 1.0
+set ambient_occlusion_smooth, 50
 set antialias, 2
 set antialias_shader, 2
 set async_builds, 1
@@ -18,14 +19,15 @@ set cartoon_oval_width, 0.2
 set cartoon_rect_width, 0.2
 set cartoon_ring_finder, 1
 set cartoon_ring_mode, 3
-set cartoon_ring_transparency, 0.5
 set cartoon_ring_width, 0.1
 set cartoon_sampling, 20
 set cartoon_side_chain_helper, 1
+set cartoon_smooth_loops, 0
 set defer_builds_mode, 3
 set depth_cue, 0
 set direct, 0.5
 set draw_mode, 1
+set dynamic_width, 1
 set fog, 0
 set hash_max, 16000
 set light_count, 8
@@ -37,20 +39,24 @@ set ray_opaque_background, 0
 set ray_orthoscopic, 1
 set ray_shadow, 0
 set ray_shadow_decay_factor, 0
-set ray_trace_depth_factor, 0
-set ray_trace_disco_factor, 1
+set ray_shadow_decay_range, 0
+set ray_trace_depth_factor, 1
+set ray_trace_disco_factor, 0.4
 set ray_trace_fog, 0
-set ray_trace_gain, 0.1
+set ray_trace_frames, 1
+set ray_trace_gain, 0.2
 set ray_trace_mode, 1
-set reflect, 0.5
+set ray_trace_slope_factor, 50
+set reflect, 0.4
 set ribbon_sampling, 20
+set shininess, 50
 set spec_count, -1
 set spec_direct, 0
-set spec_direct_power, 1
+set spec_direct_power, 0
 set spec_power, 0
 set spec_reflect, 0
 set specular, 0
-set specular_intensity, 0.5
+set specular_intensity, 1
 set sphere_quality, 2
 set surface_quality, 1
 set surface_ramp_above_mode, 1
