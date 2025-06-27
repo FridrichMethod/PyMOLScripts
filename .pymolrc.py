@@ -86,5 +86,5 @@ def _load_colorbrewer():
     print("Colorbrewer palettes loaded.")
 
 
-_load_pymol_script_repo()
+# _load_pymol_script_repo()
 _load_colorbrewer()

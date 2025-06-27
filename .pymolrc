@@ -16,7 +16,7 @@ set cartoon_loop_radius, 0.2
 set cartoon_nucleic_acid_mode, 4
 set cartoon_oval_quality, 100
 set cartoon_oval_width, 0.2
-set cartoon_rect_width, 0.2
+set cartoon_rect_width, 0.3
 set cartoon_ring_finder, 1
 set cartoon_ring_mode, 3
 set cartoon_ring_width, 0.1
@@ -47,7 +47,7 @@ set ray_trace_frames, 1
 set ray_trace_gain, 0.2
 set ray_trace_mode, 1
 set ray_trace_slope_factor, 50
-set reflect, 0.4
+set reflect, 0.3
 set ribbon_sampling, 20
 set shininess, 50
 set spec_count, -1
@@ -58,9 +58,12 @@ set spec_reflect, 0
 set specular, 0
 set specular_intensity, 1
 set sphere_quality, 2
-set surface_quality, 1
+set stick_radius, 0.3
+set surface_mode, 0
+set surface_quality, 2
 set surface_ramp_above_mode, 1
 set surface_smooth_edges, 1
+set surface_solvent, 0
 set transparency, 0.5
 set transparency_mode, 2
 set two_sided_lighting, 1
