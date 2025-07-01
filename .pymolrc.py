@@ -3,51 +3,68 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.request
 
 from pymol import cmd
 
+CHECK_INTERVAL_SECONDS = 7 * 24 * 3600  # seven days
+
 
 def _load_pymol_script_repo():
-    """Load the PyMOL script repository from GitHub."""
-    pymol_script_repo = os.path.abspath(
-        os.path.join(os.path.expanduser("~"), "Pymol-script-repo")
-    )
+    """Load the PyMOL script repository from GitHub, updating at most once every 7 days."""
+    home = os.path.expanduser("~")
+    repo_dir = os.path.join(home, "Pymol-script-repo")
 
-    # Check if the PyMOL script repository exists, clone it if not
-    if os.path.isdir(pymol_script_repo):
-        print("Checking for updates to PyMOL script repository...")
+    # Use XDG_CACHE_HOME or ~/.cache as the marker location
+    cache_dir = os.environ.get("XDG_CACHE_HOME", os.path.join(home, ".cache"))
+    os.makedirs(cache_dir, exist_ok=True)
+    marker_file = os.path.join(cache_dir, ".pymol_script_repo_last_update")
 
-        # Check if local is behind remote using git status with upstream comparison
-        status_result = subprocess.run(
-            ["git", "-C", pymol_script_repo, "status", "-uno", "-b"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    def should_check() -> bool:
+        if not os.path.isdir(repo_dir):
+            # Never cloned: must check (i.e. clone)
+            return True
+        if not os.path.isfile(marker_file):
+            # No previous timestamp: must check
+            return True
+        # If marker is older than our interval, we should check again
+        return (time.time() - os.path.getmtime(marker_file)) >= CHECK_INTERVAL_SECONDS
 
-        if "Your branch is behind" in status_result.stdout:
-            print("Updates available. Updating PyMOL script repository...")
-            subprocess.call(["git", "-C", pymol_script_repo, "pull"])
+    if should_check():
+        if os.path.isdir(repo_dir):
+            print("Checking for updates to PyMOL script repository…")
+            status = subprocess.run(
+                ["git", "-C", repo_dir, "status", "-uno", "-b"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if "Your branch is behind" in status.stdout:
+                print("Updates available. Pulling latest scripts…")
+                subprocess.call(["git", "-C", repo_dir, "pull"])
+            else:
+                print("PyMOL script repository is already up to date.")
         else:
-            print("PyMOL script repository is up to date.")
-    else:
-        print("Cloning PyMOL script repository...")
-        subprocess.call(
-            [
-                "git",
-                "clone",
-                "https://github.com/Pymol-Scripts/Pymol-script-repo.git",
-                pymol_script_repo,
-            ]
-        )
+            print("Cloning PyMOL script repository for the first time…")
+            subprocess.call(
+                [
+                    "git",
+                    "clone",
+                    "https://github.com/Pymol-Scripts/Pymol-script-repo.git",
+                    repo_dir,
+                ]
+            )
 
-    pymol_script_repo_plugins = os.path.join(pymol_script_repo, "plugins")
-    pymol_script_repo_modules = os.path.join(pymol_script_repo, "modules")
-    sys.path.append(pymol_script_repo)
-    sys.path.append(pymol_script_repo_modules)
-    os.environ["PYMOL_GIT_MOD"] = pymol_script_repo_modules
+        # Touch the marker file to record this check time
+        open(marker_file, "a").close()
+        os.utime(marker_file, None)
 
+    # Finally, add to sys.path and set environment variable
+    modules_dir = os.path.join(repo_dir, "modules")
+    sys.path.append(repo_dir)
+    sys.path.append(modules_dir)
+    os.environ["PYMOL_GIT_MOD"] = modules_dir
     print("PyMOL script repository loaded.")
 
 
@@ -86,5 +103,5 @@ def _load_colorbrewer():
     print("Colorbrewer palettes loaded.")
 
 
-# _load_pymol_script_repo()
+_load_pymol_script_repo()
 _load_colorbrewer()
