@@ -23,6 +23,8 @@ set cartoon_ring_width, 0.1
 set cartoon_sampling, 20
 set cartoon_side_chain_helper, 1
 set cartoon_smooth_loops, 0
+set dash_radius, 0.14
+set dash_width, 4
 set defer_builds_mode, 3
 set depth_cue, 0
 set direct, 0.5
