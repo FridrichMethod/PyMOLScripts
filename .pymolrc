@@ -45,7 +45,7 @@ set ray_shadow_decay_range, 0
 set ray_trace_depth_factor, 1
 set ray_trace_disco_factor, 0.4
 set ray_trace_fog, 0
-set ray_trace_frames, 1
+set ray_trace_frames, 0
 set ray_trace_gain, 0.2
 set ray_trace_mode, 1
 set ray_trace_slope_factor, 50
