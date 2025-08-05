@@ -29,13 +29,15 @@ set cartoon_tube_radius, 0.5
 set dash_radius, 0.14
 set dash_width, 4
 set defer_builds_mode, 3
-set depth_cue, 0
+set depth_cue, 1
 set direct, 0.5
 set draw_mode, 1
 set dynamic_width, 1
-set fog, 0
+set fog, 1
+set fog_start, 0.4
 set hash_max, 16000
 set light_count, 8
+set line_smooth, 1
 set nb_spheres_quality, 3
 set opaque_background, 0
 set orthoscopic, 1
@@ -47,7 +49,8 @@ set ray_shadow_decay_factor, 0
 set ray_shadow_decay_range, 0
 set ray_trace_depth_factor, 1
 set ray_trace_disco_factor, 0.4
-set ray_trace_fog, 0
+set ray_trace_fog, 1
+set ray_trace_fog_start, 0.5
 set ray_trace_frames, 0
 set ray_trace_gain, 0.2
 set ray_trace_mode, 1
