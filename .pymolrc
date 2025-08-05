@@ -5,7 +5,7 @@ space cmyk
 set ambient, 0.25
 set ambient_occlusion_mode, 1
 set ambient_occlusion_scale, 1.0
-set ambient_occlusion_smooth, 50
+set ambient_occlusion_smooth, 100
 set antialias, 2
 set antialias_shader, 2
 set async_builds, 1
@@ -19,10 +19,13 @@ set cartoon_oval_width, 0.2
 set cartoon_rect_width, 0.3
 set cartoon_ring_finder, 1
 set cartoon_ring_mode, 3
-set cartoon_ring_width, 0.1
+set cartoon_ring_width, 0.15
+set cartoon_ring_transparency, 0.5
 set cartoon_sampling, 20
 set cartoon_side_chain_helper, 1
 set cartoon_smooth_loops, 0
+set cartoon_tube_quality, 100
+set cartoon_tube_radius, 0.5
 set dash_radius, 0.14
 set dash_width, 4
 set defer_builds_mode, 3
