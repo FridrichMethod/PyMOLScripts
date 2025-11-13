@@ -68,7 +68,7 @@ set specular_intensity, 1
 set sphere_quality, 2
 set stick_radius, 0.3
 set surface_mode, 0
-set surface_quality, 2
+set surface_quality, 1
 set surface_ramp_above_mode, 1
 set surface_smooth_edges, 1
 set surface_solvent, 0
@@ -82,3 +82,4 @@ set volume_layers, 1000
 valence guess, all
 
 cd ~/Downloads
+
