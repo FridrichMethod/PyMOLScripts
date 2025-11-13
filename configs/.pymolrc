@@ -2,9 +2,9 @@ util.performance(0)
 
 space cmyk
 
-set ambient, 0.25
+set ambient, 0.2
 set ambient_occlusion_mode, 1
-set ambient_occlusion_scale, 1.0
+set ambient_occlusion_scale, 12
 set ambient_occlusion_smooth, 100
 set antialias, 2
 set antialias_shader, 2
@@ -30,7 +30,7 @@ set dash_radius, 0.14
 set dash_width, 4
 set defer_builds_mode, 3
 set depth_cue, 1
-set direct, 0.5
+set direct, 0.6
 set draw_mode, 1
 set dynamic_width, 1
 set fog, 1
@@ -55,7 +55,8 @@ set ray_trace_frames, 0
 set ray_trace_gain, 0.2
 set ray_trace_mode, 1
 set ray_trace_slope_factor, 50
-set reflect, 0.3
+set ray_transparency_oblique, 0
+set reflect, 0.4
 set ribbon_sampling, 20
 set shininess, 50
 set spec_count, -1
@@ -82,4 +83,3 @@ set volume_layers, 1000
 valence guess, all
 
 cd ~/Downloads
-
