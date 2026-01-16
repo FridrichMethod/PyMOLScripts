@@ -34,6 +34,17 @@ def _load_pymol_script_repo():
     if should_check():
         if os.path.isdir(repo_dir):
             print("Checking for updates to PyMOL script repository…")
+            fetch = subprocess.run(
+                ["git", "-C", repo_dir, "fetch", "--quiet"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if fetch.returncode != 0:
+                print(
+                    "Warning: unable to fetch remote updates. "
+                    "Falling back to local status."
+                )
             status = subprocess.run(
                 ["git", "-C", repo_dir, "status", "-uno", "-b"],
                 capture_output=True,
