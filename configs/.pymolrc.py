@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from pathlib import Path
 
 from pymol import cmd
 
@@ -13,69 +14,65 @@ CHECK_INTERVAL_SECONDS = 7 * 24 * 3600  # seven days
 
 def _load_pymol_script_repo():
     """Load the PyMOL script repository from GitHub, updating at most once every 7 days."""
-    home = os.path.expanduser("~")
-    repo_dir = os.path.join(home, "Pymol-script-repo")
+    home = Path.home()
+    repo_dir = home / "Pymol-script-repo"
 
     # Use XDG_CACHE_HOME or ~/.cache as the marker location
-    cache_dir = os.environ.get("XDG_CACHE_HOME", os.path.join(home, ".cache"))
-    os.makedirs(cache_dir, exist_ok=True)
-    marker_file = os.path.join(cache_dir, ".pymol_script_repo_last_update")
+    cache_dir = Path(os.environ.get("XDG_CACHE_HOME", home / ".cache"))
+    cache_dir.mkdir(exist_ok=True, parents=True)
+    marker_file = cache_dir / ".pymol_script_repo_last_update"
 
     def should_check() -> bool:
-        if not os.path.isdir(repo_dir):
+        if not repo_dir.is_dir():
             # Never cloned: must check (i.e. clone)
             return True
-        if not os.path.isfile(marker_file):
+        if not marker_file.is_file():
             # No previous timestamp: must check
             return True
         # If marker is older than our interval, we should check again
-        return (time.time() - os.path.getmtime(marker_file)) >= CHECK_INTERVAL_SECONDS
+        return (time.time() - marker_file.stat().st_mtime) >= CHECK_INTERVAL_SECONDS
 
     if should_check():
-        if os.path.isdir(repo_dir):
+        if repo_dir.is_dir():
             print("Checking for updates to PyMOL script repository…")
             fetch = subprocess.run(
-                ["git", "-C", repo_dir, "fetch", "--quiet"],
+                ["git", "-C", str(repo_dir), "fetch", "--quiet"],
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if fetch.returncode != 0:
-                print(
-                    "Warning: unable to fetch remote updates. "
-                    "Falling back to local status."
-                )
+                print("Warning: unable to fetch remote updates. Falling back to local status.")
             status = subprocess.run(
-                ["git", "-C", repo_dir, "status", "-uno", "-b"],
+                ["git", "-C", str(repo_dir), "status", "-uno", "-b"],
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if "Your branch is behind" in status.stdout:
                 print("Updates available. Pulling latest scripts…")
-                subprocess.call(["git", "-C", repo_dir, "pull"])
+                subprocess.call(["git", "-C", str(repo_dir), "pull"])
             else:
                 print("PyMOL script repository is already up to date.")
         else:
             print("Cloning PyMOL script repository for the first time…")
-            subprocess.call(
-                [
-                    "git",
-                    "clone",
-                    "https://github.com/Pymol-Scripts/Pymol-script-repo.git",
-                    repo_dir,
-                ]
-            )
+            subprocess.call([
+                "git",
+                "clone",
+                "https://github.com/Pymol-Scripts/Pymol-script-repo.git",
+                str(repo_dir),
+            ])
 
         # Touch the marker file to record this check time
-        open(marker_file, "a").close()
+        marker_file.open("a").close()
         os.utime(marker_file, None)
 
     # Finally, add to sys.path and set environment variable
-    modules_dir = os.path.join(repo_dir, "modules")
-    sys.path.append(repo_dir)
-    sys.path.append(modules_dir)
-    os.environ["PYMOL_GIT_MOD"] = modules_dir
+    modules_dir = repo_dir / "modules"
+    sys.path.append(str(repo_dir))
+    sys.path.append(str(modules_dir))
+    os.environ["PYMOL_GIT_MOD"] = str(modules_dir)
+
     print("PyMOL script repository loaded.")
 
 
@@ -85,9 +82,7 @@ def _load_colorbrewer():
     js_text = urllib.request.urlopen(url).read().decode("utf-8")
 
     # Extract the JavaScript object containing the ColorBrewer palettes
-    obj_text = re.search(
-        r"var\s+colorbrewer\s*=\s*(\{.*\});", js_text, flags=re.S
-    ).group(1)
+    obj_text = re.search(r"var\s+colorbrewer\s*=\s*(\{.*\});", js_text, flags=re.DOTALL).group(1)
     json_text = re.sub(r"(\b[a-zA-Z0-9_]+)\s*:", r'"\1":', obj_text)
     json_text = json_text.replace("'", '"')
 
