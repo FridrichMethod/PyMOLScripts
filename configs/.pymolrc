@@ -37,7 +37,7 @@ set fetch_path, ~/Downloads
 set fetch_type, pdb
 set fog, 1
 set fog_start, 0.4
-set label_font, Arial
+set label_font_id, 5
 set label_size, 12
 set light_count, 8
 set line_smooth, 1
@@ -64,7 +64,6 @@ set ray_transparency_oblique, 0
 set reflect, 0.4
 set ribbon_sampling, 20
 set shininess, 50
-set spec_count, -1
 set spec_direct, 0
 set spec_direct_power, 0
 set spec_power, 0
