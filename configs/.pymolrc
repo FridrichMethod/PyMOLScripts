@@ -5,7 +5,7 @@ space cmyk
 set ambient, 0.2
 set ambient_occlusion_mode, 1
 set ambient_occlusion_scale, 12
-set ambient_occlusion_smooth, 100
+set ambient_occlusion_smooth, 40
 set antialias, 2
 set antialias_shader, 2
 set async_builds, 1
@@ -19,8 +19,8 @@ set cartoon_oval_width, 0.2
 set cartoon_rect_width, 0.3
 set cartoon_ring_finder, 1
 set cartoon_ring_mode, 3
-set cartoon_ring_width, 0.15
 set cartoon_ring_transparency, 0.5
+set cartoon_ring_width, 0.15
 set cartoon_sampling, 20
 set cartoon_side_chain_helper, 1
 set cartoon_smooth_loops, 0
@@ -33,11 +33,15 @@ set depth_cue, 1
 set direct, 0.6
 set draw_mode, 1
 set dynamic_width, 1
+set fetch_path, ~/Downloads
+set fetch_type, pdb
 set fog, 1
 set fog_start, 0.4
-set hash_max, 16000
+set label_font, Arial
+set label_size, 12
 set light_count, 8
 set line_smooth, 1
+set movie_fps, 60
 set nb_spheres_quality, 3
 set opaque_background, 0
 set orthoscopic, 1
@@ -48,13 +52,14 @@ set ray_shadow, 0
 set ray_shadow_decay_factor, 0
 set ray_shadow_decay_range, 0
 set ray_trace_depth_factor, 1
-set ray_trace_disco_factor, 0.4
+set ray_trace_disco_factor, 1
 set ray_trace_fog, 1
-set ray_trace_fog_start, 0.5
+set ray_trace_fog_start, 0.6
 set ray_trace_frames, 0
-set ray_trace_gain, 0.2
+set ray_trace_gain, 0.4
 set ray_trace_mode, 1
-set ray_trace_slope_factor, 50
+set ray_trace_slope_factor, 5
+set ray_trace_trans_cutoff, 1
 set ray_transparency_oblique, 0
 set reflect, 0.4
 set ribbon_sampling, 20
@@ -65,7 +70,7 @@ set spec_direct_power, 0
 set spec_power, 0
 set spec_reflect, 0
 set specular, 0
-set specular_intensity, 1
+set specular_intensity, 0
 set sphere_quality, 2
 set stick_radius, 0.3
 set surface_mode, 0
@@ -81,5 +86,3 @@ set valence_mode, 1
 set volume_layers, 1000
 
 valence guess, all
-
-cd ~/Downloads
