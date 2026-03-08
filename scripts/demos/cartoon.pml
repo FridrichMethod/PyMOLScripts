@@ -5,7 +5,7 @@ remove chain B
 
 # set the color scheme
 spectrum b, rainbow2, pol.
-util.cba(144,"resn SEP",_self=cmd)
+util.cba(144, "resn SEP", _self=cmd)
 
 # set the view
 show spheres, resn SEP

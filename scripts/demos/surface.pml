@@ -7,7 +7,7 @@ remove sol.
 color_deep lightblue, resi 1-61
 color_deep palegreen, resi 62-270
 color_deep lightpink, resi 271-320
-util.cba(144,"resn BTX",_self=cmd)
+util.cba(144, "resn BTX", _self=cmd)
 
 # set the view
 show surface, pol.

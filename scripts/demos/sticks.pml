@@ -6,13 +6,13 @@ remove resn SO4
 # set the color scheme
 color grey80, pol.
 set cartoon_transparency, 0.8
-util.cba(11,"resn LAQ",_self=cmd)
-util.cba(5274,"br. resn LAQ a. 4",_self=cmd)
+util.cba(11, "resn LAQ", _self=cmd)
+util.cba(5274, "br. resn LAQ a. 3.5", _self=cmd)
 
 # set the view
-show sticks, br. resn LAQ a. 4
+show sticks, br. resn LAQ a. 3.5
 orient
-zoom br. resn LAQ a. 4
+zoom (br. resn LAQ a. 3.5) + resn LAQ
 
 # render & save
 ray 1920, 1080
