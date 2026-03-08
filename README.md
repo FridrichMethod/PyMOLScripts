@@ -22,6 +22,6 @@ You may also view and edit these rc files in `PyMOL -> File -> Edit pymolrc`.
 
 ![Surface Demo](assets/demo_surface.png)
 
-### Nucleic Acid
+### Nucleic Acids
 
-![Nucleic Acid Demo](assets/demo_na.png)
+![Nucleic Acids Demo](assets/demo_na.png)
