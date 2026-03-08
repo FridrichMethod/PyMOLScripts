@@ -6,6 +6,7 @@ on:
     paths:
       - "configs/.pymolrc"
       - "configs/.pymolrc.py"
+      - "scripts/demos/*.pml"
   workflow_dispatch:
 
 jobs:
