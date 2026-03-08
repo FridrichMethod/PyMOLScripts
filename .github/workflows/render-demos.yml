@@ -21,10 +21,10 @@ jobs:
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          miniforge-variant: Mambaforge
+          auto-update-conda: true
+          activate-environment: pymol
           channels: conda-forge,defaults
-          channel-priority: strict
-
+          use-mamba: true
       - name: Install PyMOL and Xvfb
         shell: bash -l {0}
         run: |
