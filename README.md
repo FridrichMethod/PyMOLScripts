@@ -8,20 +8,20 @@ To use these scripts, you can simply copy `configs/.pymolrc` and `configs/.pymol
 
 You may also view and edit these rc files in `PyMOL -> File -> Edit pymolrc`.
 
-## Demo
+## Demos
 
-### Cartoon Representation
+### Cartoon
 
-![Cartoon Demo](docs/demo_cartoon.png)
+![Cartoon Demo](assets/demo_cartoon.png)
 
-### DNA Structure
+### Sticks
 
-![DNA Demo](docs/demo_dna.png)
+![Sticks Demo](assets/demo_sticks.png)
 
-### Sticks Representation
+### Surface
 
-![Sticks Demo](docs/demo_sticks.png)
+![Surface Demo](assets/demo_surface.png)
 
-### Surface Representation
+### DNA
 
-![Surface Demo](docs/demo_surface.png)
+![DNA Demo](assets/demo_dna.png)
