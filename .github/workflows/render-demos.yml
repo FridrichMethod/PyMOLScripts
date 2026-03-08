@@ -25,10 +25,14 @@ jobs:
           activate-environment: pymol
           channels: conda-forge,defaults
           use-mamba: true
-      - name: Install PyMOL and Xvfb
+
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install PyMOL
         shell: bash -l {0}
         run: |
-          conda install -y pymol-open-source xvfb-run
+          conda install -y pymol-open-source
 
       - name: Render demos
         shell: bash -l {0}
