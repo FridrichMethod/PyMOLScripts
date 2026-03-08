@@ -13,6 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    defaults:
+      run:
+        shell: bash -l {0}
+    name: Render demos
+
     steps:
       - uses: actions/checkout@v6
         with:
@@ -26,16 +31,11 @@ jobs:
           channels: conda-forge,defaults
           use-mamba: true
 
-      - name: Install Xvfb
-        run: sudo apt-get update && sudo apt-get install -y xvfb
-
       - name: Install PyMOL
-        shell: bash -l {0}
         run: |
           conda install -y pymol-open-source
 
       - name: Render demos
-        shell: bash -l {0}
         env:
           PYMOLRC: ${{ github.workspace }}/configs/.pymolrc
         run: |
