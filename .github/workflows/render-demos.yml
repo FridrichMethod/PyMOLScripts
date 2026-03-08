@@ -28,7 +28,7 @@ jobs:
       - name: Install PyMOL and Xvfb
         shell: bash -l {0}
         run: |
-          mamba install -y pymol-open-source xvfb-run
+          conda install -y pymol-open-source xvfb-run
 
       - name: Render demos
         shell: bash -l {0}
