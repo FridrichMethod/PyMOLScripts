@@ -43,7 +43,7 @@ jobs:
           for pml in scripts/demos/*.pml; do
             name=$(basename "$pml" .pml)
             echo "Rendering $name..."
-            xvfb-run -a pymol -cqxi "$pml"
+            xvfb-run -a pymol -cqxi -d "@${PYMOLRC}" "$pml"
           done
           ls -la assets/
 
