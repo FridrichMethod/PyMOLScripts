@@ -51,10 +51,10 @@ set ray_orthoscopic, 1
 set ray_shadow, 0
 set ray_shadow_decay_factor, 0
 set ray_shadow_decay_range, 0
-set ray_trace_depth_factor, 1
+set ray_trace_depth_factor, 1.2
 set ray_trace_disco_factor, 1
 set ray_trace_fog, 1
-set ray_trace_fog_start, 0.6
+set ray_trace_fog_start, 0.4
 set ray_trace_frames, 0
 set ray_trace_gain, 0.4
 set ray_trace_mode, 1
