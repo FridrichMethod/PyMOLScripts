@@ -77,7 +77,6 @@ set surface_quality, 1
 set surface_ramp_above_mode, 1
 set surface_smooth_edges, 1
 set surface_solvent, 0
-set transparency, 0.5
 set transparency_mode, 2
 set two_sided_lighting, 1
 set valence, 1
