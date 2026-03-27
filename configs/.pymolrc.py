@@ -79,7 +79,11 @@ def _load_pymol_script_repo():
 def _load_colorbrewer():
     """Load ColorBrewer palettes into PyMOL."""
     url = "https://gist.githubusercontent.com/frankrowe/9007567/raw/colorbrewer.js"
-    js_text = urllib.request.urlopen(url).read().decode("utf-8")
+    try:
+        js_text = urllib.request.urlopen(url, timeout=5).read().decode("utf-8")
+    except Exception as exc:
+        print(f"Warning: unable to load ColorBrewer palettes ({exc}). Skipping.")
+        return
 
     # Extract the JavaScript object containing the ColorBrewer palettes
     obj_text = re.search(r"var\s+colorbrewer\s*=\s*(\{.*\});", js_text, flags=re.DOTALL).group(1)
