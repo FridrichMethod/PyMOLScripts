@@ -7,6 +7,7 @@ on:
       - "configs/.pymolrc"
       - "configs/.pymolrc.py"
       - "scripts/demos/*.pml"
+      - "scripts/apbs/prepare_apbs.sh"
   workflow_dispatch:
 
 jobs:
@@ -32,9 +33,13 @@ jobs:
           channels: conda-forge,defaults
           use-mamba: true
 
-      - name: Install PyMOL
+      - name: Install PyMOL, APBS and PDB2PQR
         run: |
-          conda install -y pymol-open-source
+          conda install -y pymol-open-source apbs pdb2pqr
+
+      - name: Generate APBS electrostatics
+        run: |
+          bash scripts/apbs/prepare_apbs.sh 2ewn A
 
       - name: Render demos
         env:
