@@ -22,6 +22,10 @@ You may also view and edit these rc files in `PyMOL -> File -> Edit pymolrc`.
 
 ![Surface Demo](assets/demo_surface.png)
 
+### APBS (Electrostatic Surface)
+
+![APBS Demo](assets/demo_apbs.png)
+
 ### Nucleic Acids
 
 ![Nucleic Acids Demo](assets/demo_na.png)
