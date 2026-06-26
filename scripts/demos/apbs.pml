@@ -12,8 +12,14 @@ show surface, 2ewn
 ramp_new 2ewn_esp, 2ewn_potential, [-5, 0, 5], [red, white, blue]
 set surface_color, 2ewn_esp, 2ewn
 
-# set the view
-orient 2ewn
+# set the view (same camera as scripts/demos/surface.pml)
+set_view (\
+    -0.278456718,    0.878569365,    0.388043523,\
+    -0.570280433,    0.173850223,   -0.802842677,\
+    -0.772814512,   -0.444850624,    0.452621192,\
+    -0.000000000,    0.000000000, -208.479782104,\
+     3.418830872,   47.872474670,  -38.216609955,\
+   164.367050171,  252.592514038,   20.000000000 )
 
 # render & save
 ray 1920, 1080
