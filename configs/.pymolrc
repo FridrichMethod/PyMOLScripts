@@ -9,7 +9,7 @@ set ambient_occlusion_smooth, 40
 set antialias, 2
 set antialias_shader, 2
 set async_builds, 1
-set backface_cull, 1
+set backface_cull, 0
 set bg_rgb, white
 set cartoon_ladder_mode, 1
 set cartoon_loop_radius, 0.2
