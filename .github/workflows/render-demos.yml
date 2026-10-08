@@ -60,7 +60,9 @@ jobs:
           git add assets/*.png
           if git diff --staged --quiet; then
             echo "No PNG changes"
+            echo "**No PNG changes**: re-rendered demos are byte-identical to the committed assets, so nothing was committed." >> "$GITHUB_STEP_SUMMARY"
           else
+            { echo "**Re-rendered PNGs committed:**"; git diff --staged --name-only | sed 's/^/- `/; s/$/`/'; } >> "$GITHUB_STEP_SUMMARY"
             git commit -m "chore: re-render demos after config update"
             git push origin HEAD:${{ github.ref }}
           fi
