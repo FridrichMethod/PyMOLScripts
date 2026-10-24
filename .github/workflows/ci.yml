@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "ci/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Installer tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: python3
+          - os: macos-latest
+            python: python3
+          - os: windows-latest
+            python: python
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Show shells and download tools
+        shell: bash
+        run: |
+          for tool in sh curl wget pwsh powershell; do
+            printf '%-10s %s\n' "$tool" "$(command -v "$tool" || echo missing)"
+          done
+          ${{ matrix.python }} --version
+
+      - name: Run installer tests
+        run: ${{ matrix.python }} -m unittest discover -s tests -v
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check install.sh
+        run: |
+          shellcheck --version
+          shellcheck install.sh
