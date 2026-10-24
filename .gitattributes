@@ -1,0 +1,10 @@
+# Git for Windows enables core.autocrlf in its system config, which would check
+# the installers out with CRLF line endings. Pin LF so install.sh runs under sh
+# and every checkout is byte-identical on every platform.
+* text=auto eol=lf
+
+# The PyMOL configs are stored with CRLF. -text keeps their bytes exactly as
+# committed in every checkout, so installing from a clone writes the same bytes
+# as downloading them from raw.githubusercontent.com.
+configs/.pymolrc -text
+configs/.pymolrc.py -text
