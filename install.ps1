@@ -77,11 +77,20 @@ function Test-AbsolutePath([string]$Path) {
     return $Path.StartsWith('/')
 }
 
-# A regular file, not a directory and not a link (dangling or not).
+# A file that is not a directory and not a symlink or junction (dangling or
+# not). Other reparse points, such as OneDrive placeholders, are ordinary files.
 function Test-RegularFile([string]$Path) {
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Ignore
     if ($null -eq $item -or $item.PSIsContainer) { return $false }
-    return -not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
+    return @('SymbolicLink', 'Junction') -notcontains [string]$item.LinkType
+}
+
+# A directory, a link to one, or a directory-type link whose target is gone:
+# entries a file rename cannot replace.
+function Test-DirectoryEntry([string]$Path) {
+    if ([IO.Directory]::Exists($Path)) { return $true }
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction Ignore
+    return $null -ne $item -and [bool]($item.Attributes -band [IO.FileAttributes]::Directory)
 }
 
 function Test-SameBytes([string]$A, [string]$B) {
@@ -96,16 +105,19 @@ function Test-SameBytes([string]$A, [string]$B) {
 
 # Rename $From over $To. The overwrite overload of File.Move (.NET Core 3.0+,
 # so PowerShell 7) renames over the destination entry itself, replacing a
-# symlink instead of following it. Windows PowerShell 5.1 lacks it, so there
-# the old entry is deleted first (File.Delete removes a link, not its target).
+# symlink instead of following it. Windows PowerShell 5.1 lacks it: there a
+# regular file is swapped with File.Replace, and a link is deleted first
+# (File.Delete removes the link, not its target).
 function Move-Replace([string]$From, [string]$To) {
     $overwriteMove = [IO.File].GetMethod('Move', [Type[]]@([string], [string], [bool]))
     if ($null -ne $overwriteMove) {
         [IO.File]::Move($From, $To, $true)
-        return
+    } elseif (Test-RegularFile $To) {
+        [IO.File]::Replace($From, $To, $null)
+    } else {
+        [IO.File]::Delete($To)
+        [IO.File]::Move($From, $To)
     }
-    [IO.File]::Delete($To)
-    [IO.File]::Move($From, $To)
 }
 
 function Get-Message($ErrorRecord) {
@@ -124,7 +136,7 @@ while ($i -lt $args.Count) {
         $i += 2
         continue
     }
-    if ($arg -match '^--prefix=(.*)$') {
+    if ($arg -match '^--?prefix[=:](.*)$') {
         $Prefix = $Matches[1]
         $i += 1
         continue
@@ -162,7 +174,7 @@ try {
         }
         foreach ($name in $Names) {
             $dest = [IO.Path]::Combine($Dir, $name)
-            if ([IO.Directory]::Exists($dest)) {
+            if (Test-DirectoryEntry $dest) {
                 Exit-Error "$dest is a directory or a link to one; remove it and rerun"
             }
         }
@@ -248,7 +260,7 @@ try {
         foreach ($name in $changed) {
             $dest = [IO.Path]::Combine($Dir, $name)
             $verb = if (Test-RegularFile $dest) { 'updated' } else { 'installed' }
-            if ([IO.Directory]::Exists($dest)) {
+            if (Test-DirectoryEntry $dest) {
                 Exit-Error "$dest is a directory or a link to one; remove it and rerun"
             }
             try {

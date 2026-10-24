@@ -130,14 +130,21 @@ trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
 # Piped (curl | sh) or run via `sh -s`, $0 names the shell, not this file.
-case $0 in
-    */*) script_dir=${0%/*} ;;
-    *) script_dir=. ;;
+src=
+case ${0##*/} in
+    sh | -sh | ash | bash | -bash | dash | ksh | mksh | posh | yash | zsh | busybox) ;;
+    *)
+        case $0 in
+            */*) script_dir=${0%/*} ;;
+            *) script_dir=. ;;
+        esac
+        if [ -f "$0" ] && [ -f "$script_dir/configs/.pymolrc" ] &&
+            [ -f "$script_dir/configs/.pymolrc.py" ]; then
+            src=$script_dir/configs
+        fi
+        ;;
 esac
-if [ -f "$0" ] && [ -f "$script_dir/configs/.pymolrc" ] &&
-    [ -f "$script_dir/configs/.pymolrc.py" ]; then
-    src=$script_dir/configs
-else
+if [ -z "$src" ]; then
     if command -v curl >/dev/null 2>&1; then
         fetcher=curl
     elif command -v wget >/dev/null 2>&1; then
@@ -150,7 +157,7 @@ else
     ref=${PYMOLSCRIPTS_REF:-main}
     tmp_root=${TMPDIR:-/tmp}
     tmp_root=${tmp_root%/}
-    stage=$(mktemp -d "$tmp_root/pymolscripts-install.XXXXXX") ||
+    stage=$(mktemp -d "$tmp_root/pymolscripts-install.XXXXXX" 2>/dev/null) ||
         die "cannot create a temporary directory in $tmp_root"
     for name in .pymolrc .pymolrc.py; do
         url=$base_url/$ref/configs/$name
@@ -182,12 +189,12 @@ if [ $# -eq 0 ]; then
 fi
 
 if [ ! -d "$dir_shown" ]; then
-    mkdir -p "$dir_shown" || die "cannot create $dir_shown"
+    err=$(mkdir -p "$dir_shown" 2>&1) || die "cannot create $dir_shown: $err"
 fi
-work=$(mktemp -d "$dir/.pymolscripts-install.XXXXXX") ||
+work=$(mktemp -d "$dir/.pymolscripts-install.XXXXXX" 2>/dev/null) ||
     die "cannot create a temporary directory in $dir_shown"
 for name in "$@"; do
-    cat "$src/$name" >"$work/$name" || die "cannot write $work/$name"
+    err=$(cat "$src/$name" 2>&1 >"$work/$name") || die "cannot write $work/$name: $err"
 done
 for name in "$@"; do
     dest=$dir/$name
@@ -197,7 +204,7 @@ for name in "$@"; do
         verb=installed
     fi
     [ ! -d "$dest" ] || die "$dest is a directory or a link to one; remove it and rerun"
-    mv -f "$work/$name" "$dest" || die "cannot rename $work/$name to $dest"
+    err=$(mv -f "$work/$name" "$dest" 2>&1) || die "cannot rename $work/$name to $dest: $err"
     say "$verb $dest"
 done
 exit 0

@@ -426,12 +426,16 @@ class ShInstallerTests(InstallerContract, unittest.TestCase):
     def test_piped_script_downloads_even_from_inside_a_checkout(self):
         files = configs("served")
         self.server.publish("testref", files)
+        # $0 is "sh" when piped; a file of that name next to configs/ in the
+        # working directory must not make it look like a checkout.
+        cwd = self.checkout(configs("local")).parent
+        (cwd / "sh").write_bytes(b"")
         with open(REPO / "install.sh", "rb") as stdin:
             result = subprocess.run(
                 ["/bin/sh", "-s", "--", "--prefix", str(self.prefix)],
                 env=self.env,
                 stdin=stdin,
-                cwd=REPO,
+                cwd=cwd,
                 capture_output=True,
                 timeout=180,
             )
@@ -492,6 +496,26 @@ class PowerShellContract(InstallerContract):
             str(script),
             *args,
         ]
+
+    def test_prefix_with_an_equals_sign(self):
+        files = configs("new")
+        self.install(self.checkout(files), f"-Prefix={self.prefix}")
+        self.assert_installed(self.prefix, files)
+
+    @unittest.skipUnless(ON_WINDOWS, "a dangling link has no type outside Windows")
+    def test_dangling_directory_link_is_an_error(self):
+        self.prefix.mkdir()
+        (self.prefix / ".pymolrc").write_bytes(b"old rc\n")
+        try:
+            os.symlink(str(self.root / "gone"), str(self.prefix / ".pymolrc.py"), True)
+        except OSError as exc:
+            self.skipTest(f"cannot create symlinks here: {exc}")
+        result = self.run_installer(
+            self.checkout(configs("new")), self.prefix_flag, str(self.prefix)
+        )
+        self.assertEqual(result.returncode, 1, self.describe(result))
+        self.assertIn("directory", result.stderr.decode())
+        self.assertEqual((self.prefix / ".pymolrc").read_bytes(), b"old rc\n")
 
     def test_unset_home_variable_is_an_error(self):
         var = "USERPROFILE" if ON_WINDOWS else "HOME"
