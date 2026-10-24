@@ -497,11 +497,6 @@ class PowerShellContract(InstallerContract):
             *args,
         ]
 
-    def test_prefix_with_an_equals_sign(self):
-        files = configs("new")
-        self.install(self.checkout(files), f"-Prefix={self.prefix}")
-        self.assert_installed(self.prefix, files)
-
     @unittest.skipUnless(ON_WINDOWS, "a dangling link has no type outside Windows")
     def test_dangling_directory_link_is_an_error(self):
         self.prefix.mkdir()

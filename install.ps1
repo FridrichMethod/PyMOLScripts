@@ -21,7 +21,8 @@
 #
 # Arguments are parsed from $args rather than a param() block so that an
 # unknown or incomplete argument is a usage error (exit 2) instead of being
-# ignored or reported by the parameter binder.
+# ignored or reported by the parameter binder. Only the form -Prefix DIR is
+# accepted: PowerShell itself splits -Name:value and -Name=C:\x tokens.
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
@@ -113,7 +114,8 @@ function Move-Replace([string]$From, [string]$To) {
     if ($null -ne $overwriteMove) {
         [IO.File]::Move($From, $To, $true)
     } elseif (Test-RegularFile $To) {
-        [IO.File]::Replace($From, $To, $null)
+        # [NullString]::Value: PowerShell would pass $null as "" (an invalid path).
+        [IO.File]::Replace($From, $To, [NullString]::Value)
     } else {
         [IO.File]::Delete($To)
         [IO.File]::Move($From, $To)
@@ -134,11 +136,6 @@ while ($i -lt $args.Count) {
         if ($i + 1 -ge $args.Count) { Exit-Usage '-Prefix needs a directory' }
         $Prefix = [string]$args[$i + 1]
         $i += 2
-        continue
-    }
-    if ($arg -match '^--?prefix[=:](.*)$') {
-        $Prefix = $Matches[1]
-        $i += 1
         continue
     }
     if ($arg -match '^(-h|-help|--help|-\?)$') {
