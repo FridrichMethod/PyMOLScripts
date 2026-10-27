@@ -113,9 +113,17 @@ for name in .pymolrc .pymolrc.py; do
     fi
 done
 
-for tool in cmp mktemp; do
+for tool in mktemp od; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool not found; it is needed to install"
 done
+
+# same_content A B: A and B hold the same bytes. od is POSIX and comes with
+# every coreutils; cmp does not (minimal images ship no diffutils).
+same_content() {
+    same_left=$(od -An -v -tx1 "$1") || return 1
+    same_right=$(od -An -v -tx1 "$2") || return 1
+    [ "$same_left" = "$same_right" ]
+}
 
 # --- source ----------------------------------------------------------------
 
@@ -178,7 +186,7 @@ fi
 set --
 for name in .pymolrc .pymolrc.py; do
     dest=$dir/$name
-    if [ -f "$dest" ] && [ ! -L "$dest" ] && cmp -s "$src/$name" "$dest"; then
+    if [ -f "$dest" ] && [ ! -L "$dest" ] && same_content "$src/$name" "$dest" 2>/dev/null; then
         continue
     fi
     set -- "$@" "$name"

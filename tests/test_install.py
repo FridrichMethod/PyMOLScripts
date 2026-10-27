@@ -416,7 +416,7 @@ class ShInstallerTests(InstallerContract, unittest.TestCase):
         """A PATH holding only what install.sh needs, plus `tools`."""
         bindir = self.root / "bin"
         bindir.mkdir(exist_ok=True)
-        for tool in ("cat", "cmp", "mkdir", "mktemp", "mv", "rm", *tools):
+        for tool in ("cat", "mkdir", "mktemp", "mv", "od", "rm", *tools):
             found = shutil.which(tool, path=self.env.get("PATH"))
             if found is None:
                 self.skipTest(f"{tool} not found")
@@ -442,6 +442,21 @@ class ShInstallerTests(InstallerContract, unittest.TestCase):
         self.assertEqual(result.returncode, 0, self.describe(result))
         self.assert_installed(self.prefix, files)
         self.assertEqual(len(self.server.requests), 2)
+
+    def test_compares_without_cmp(self):
+        # Minimal images (Fedora, Rocky Linux) ship no diffutils, so no cmp.
+        files = configs("current")
+        script = self.checkout(files)
+        env = dict(self.env, PATH=self.restricted_path())
+        self.install(script, "--prefix", str(self.prefix), env=env)
+        self.assert_installed(self.prefix, files)
+        lines = self.install(script, "--prefix", str(self.prefix), env=env).stdout.decode().splitlines()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("already current", lines[0])
+        (self.prefix / ".pymolrc").write_bytes(files[".pymolrc"] + b"# edited\n")
+        lines = self.install(script, "--prefix", str(self.prefix), env=env).stdout.decode().splitlines()
+        self.assertEqual(lines, [f"PyMOLScripts: updated {self.prefix / '.pymolrc'}"])
+        self.assert_installed(self.prefix, files)
 
     def test_missing_download_tool_is_named(self):
         env = dict(self.env, PATH=self.restricted_path())
