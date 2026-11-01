@@ -240,11 +240,40 @@ class LocalEditContract(InstallerBase):
         err = result.stderr.decode()
         self.assertIn(str(self.prefix / ".pymolrc"), err)
         self.assertNotIn(str(self.prefix / ".pymolrc.py"), err)
-        if shutil.which("diff", path=self.env.get("PATH")) and self.script_name == "install.sh":
-            self.assertIn("diff -u", err)
-            self.assertIn(str(self.record_path(self.prefix, ".pymolrc")), err)
+        hint = self.edit_hint(result)
+        if hint is not None:
+            self.assertIn(str(self.record_path(self.prefix, ".pymolrc")), hint)
+            self.assertIn(str(self.prefix / ".pymolrc"), hint)
         self.assertIn(str(self.prefix / ".pymolrc.local.pml"), err)
         self.assertIn(self.force_flag, err)
+
+    def edit_hint(self, result):
+        """The printed command that shows the one edit, checked to have the
+        form this platform gets; None where it gets none (no diff)."""
+        hints = [line.split("see the edit: ", 1)[1] for line in result.stderr.decode().splitlines()
+                 if "see the edit: " in line]
+        if self.script_name == "install.ps1" and ON_WINDOWS:
+            form = "Compare-Object "
+        elif shutil.which("diff", path=self.env.get("PATH")):
+            form = "diff -u "
+        else:
+            self.assertEqual(hints, [], self.describe(result))
+            return None
+        self.assertEqual(len(hints), 1, self.describe(result))
+        self.assertTrue(hints[0].startswith(form), hints[0])
+        return hints[0]
+
+    def test_edit_hint_runs_for_an_emptied_file(self):
+        self.install_v1_then_publish_v2()
+        (self.prefix / ".pymolrc").write_bytes(b"")
+        hint = self.edit_hint(self.stopped(self.lone(), self.prefix_flag, str(self.prefix)))
+        if hint is None:
+            self.skipTest("diff not found")
+        result = self.run_hint(hint)
+        # diff exits 1 when the files differ; Compare-Object exits 0.
+        self.assertIn(result.returncode, (0, 1) if hint.startswith("diff ") else (0,), self.describe(result))
+        self.assertEqual(result.stderr, b"", self.describe(result))
+        self.assertIn(b"set bg_rgb, v1", result.stdout, self.describe(result))
 
     def test_each_edited_file_is_named_in_a_short_ascii_message(self):
         self.install_v1_then_publish_v2()
@@ -423,6 +452,12 @@ class ShLocalEditTests(ShRunner, LocalEditContract, unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, self.describe(result))
 
+    def run_hint(self, line):
+        return subprocess.run(
+            ["/bin/sh", "-c", line], env=self.env, stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=180,
+        )
+
     def wrapped_path(self, body, *tools):
         """A PATH on which each of `tools` first runs the sh code `body`, with
         $last its last argument, $real_ln the real ln and $done a file that
@@ -586,6 +621,12 @@ class PowerShellLocalEditContract(PowerShellRunner, LocalEditContract):
         )
         self.assertEqual(result.returncode, 0, self.describe(result))
         return result
+
+    def run_hint(self, line):
+        return subprocess.run(
+            [self.exe, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", line],
+            env=self.env, stdin=subprocess.DEVNULL, capture_output=True, timeout=180,
+        )
 
     def run_probe(self, code, *args):
         """Run the PowerShell `code` with `args` as $args; return its stdout."""

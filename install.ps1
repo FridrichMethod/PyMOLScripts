@@ -350,7 +350,8 @@ function Write-Edits {
         }
         $q = (ConvertTo-Quoted $record), (ConvertTo-Quoted $dest)
         if ($null -ne $s.Recorded -and $OnWindows) {
-            $lines += "    see the edit: Compare-Object (Get-Content -LiteralPath $($q[0])) (Get-Content -LiteralPath $($q[1]))"
+            # @(): Get-Content of an empty file is $null, which Compare-Object refuses.
+            $lines += "    see the edit: Compare-Object @(Get-Content -LiteralPath $($q[0])) @(Get-Content -LiteralPath $($q[1]))"
         } elseif ($null -ne $s.Recorded -and (Get-Command -Name diff -CommandType Application -ErrorAction Ignore)) {
             $lines += "    see the edit: diff -u $($q[0]) $($q[1])"
         } elseif ($null -ne $Stage) {
