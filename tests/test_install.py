@@ -1,8 +1,7 @@
-"""Tests for install.sh and install.ps1.
+"""Tests for install.sh and install.ps1: sources, replacing, failures, usage.
 
-Every run uses a temporary HOME (and USERPROFILE), a temporary TMPDIR (and
-TMP/TEMP) and, for downloads, an HTTP server on 127.0.0.1 that the test starts
-itself, so nothing touches the real home or reaches the network.
+The local-edit guard (records, exit 3, --force) is covered by
+test_local_edits.py; the fixtures both use live in support.py.
 
 install.sh runs under /bin/sh everywhere but Windows. install.ps1 runs under
 every PowerShell on PATH: pwsh, plus Windows PowerShell 5.1 on Windows.
@@ -11,193 +10,32 @@ Missing shells skip their tests.
 Run from the repository root:  python3 -m unittest discover -s tests -v
 """
 
-import http.server
 import os
 import shutil
 import stat
 import subprocess
-import tempfile
-import threading
+import sys
 import unittest
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-NAMES = (".pymolrc", ".pymolrc.py")
-ON_WINDOWS = os.name == "nt"
-OLD_MTIME = 1_000_000_000  # 2001-09-09: no install run produces this mtime
-TEMP_PREFIX = "pymolscripts-install."
-DROPPED_ENV = (
-    "PYMOLSCRIPTS_BASE_URL",
-    "PYMOLSCRIPTS_REF",
-    "XDG_CACHE_HOME",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-    "http_proxy",
-    "https_proxy",
-    "all_proxy",
-    "HTTP_PROXY",
-    "HTTPS_PROXY",
-    "ALL_PROXY",
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from support import (  # noqa: E402
+    NAMES,
+    OLD_MTIME,
+    ON_WINDOWS,
+    PWSH,
+    REPO,
+    WINDOWS_POWERSHELL,
+    InstallerBase,
+    PowerShellRunner,
+    ShRunner,
+    configs,
 )
 
 
-def configs(tag):
-    """Distinct contents for both files, with CRLF like the real configs."""
-    return {
-        ".pymolrc": f"set bg_rgb, {tag}\r\n".encode(),
-        ".pymolrc.py": f"print('{tag}')\r\n".encode(),
-    }
-
-
-class ConfigServer:
-    """Serves {url path: bytes} on 127.0.0.1 and records every request path."""
-
-    def __init__(self):
-        self.files = {}
-        self.requests = []
-        owner = self
-
-        class Handler(http.server.BaseHTTPRequestHandler):
-            def do_GET(self):
-                owner.requests.append(self.path)
-                body = owner.files.get(self.path)
-                if body is None:
-                    self.send_error(404)
-                    return
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def log_message(self, *args):
-                pass
-
-        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
-        self.thread.start()
-        self.base_url = f"http://127.0.0.1:{self.httpd.server_address[1]}/base"
-
-    def publish(self, ref, files):
-        for name, body in files.items():
-            self.files[f"/base/{ref}/configs/{name}"] = body
-
-    def close(self):
-        self.httpd.shutdown()
-        self.httpd.server_close()
-
-
-class InstallerContract:
-    """Behaviour both installers share; subclasses say how to run one."""
-
-    script_name = ""
-    prefix_flag = ""
-    help_flag = ""
-    usage_cases = ()
-    # The name dotfiles' old payload hook gave a downloaded copy in $TMPDIR.
-    temp_copy_name = ""
-
-    def command(self, script, args):
-        raise NotImplementedError
-
-    # --- fixtures -----------------------------------------------------------
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory(prefix="pymolscripts-test-")
-        self.addCleanup(tmp.cleanup)
-        self.root = Path(os.path.realpath(tmp.name))
-        self.home = self.root / "home"
-        self.home.mkdir()
-        self.tmpdir = self.root / "tmp"
-        self.tmpdir.mkdir()
-        self.prefix = self.root / "prefix"
-        self.server = ConfigServer()
-        self.addCleanup(self.server.close)
-        env = {k: v for k, v in os.environ.items() if k not in DROPPED_ENV}
-        env.update(
-            HOME=str(self.home),
-            USERPROFILE=str(self.home),
-            TMPDIR=str(self.tmpdir),
-            TMP=str(self.tmpdir),
-            TEMP=str(self.tmpdir),
-            NO_PROXY="127.0.0.1,localhost",
-            no_proxy="127.0.0.1,localhost",
-            PYMOLSCRIPTS_BASE_URL=self.server.base_url,
-            PYMOLSCRIPTS_REF="testref",
-            POWERSHELL_TELEMETRY_OPTOUT="1",
-            POWERSHELL_UPDATECHECK="Off",
-        )
-        self.env = env
-
-    def checkout(self, files, name="checkout", git=True):
-        """A fake clone: the installer next to configs/ holding `files`."""
-        top = self.root / name
-        (top / "configs").mkdir(parents=True)
-        if git:
-            (top / ".git").mkdir()
-        shutil.copy2(REPO / self.script_name, top / self.script_name)
-        for fname, body in files.items():
-            (top / "configs" / fname).write_bytes(body)
-        return top / self.script_name
-
-    def lone(self):
-        """The installer alone, as after downloading it: download mode."""
-        top = self.root / "lone"
-        top.mkdir(exist_ok=True)
-        shutil.copy2(REPO / self.script_name, top / self.script_name)
-        return top / self.script_name
-
-    def run_installer(self, script, *args, env=None, **kwargs):
-        return subprocess.run(
-            self.command(script, list(args)),
-            env=self.env if env is None else env,
-            stdin=kwargs.pop("stdin", subprocess.DEVNULL),
-            capture_output=True,
-            timeout=180,
-            **kwargs,
-        )
-
-    def install(self, script, *args, **kwargs):
-        result = self.run_installer(script, *args, **kwargs)
-        self.assertEqual(result.returncode, 0, self.describe(result))
-        return result
-
-    def symlink(self, target, link):
-        try:
-            os.symlink(target, link)
-        except (OSError, NotImplementedError) as exc:
-            self.skipTest(f"cannot create symlinks here: {exc}")
-
-    # --- assertions ---------------------------------------------------------
-
-    @staticmethod
-    def describe(result):
-        return (
-            f"exit {result.returncode}\nstdout:\n{result.stdout.decode(errors='replace')}"
-            f"\nstderr:\n{result.stderr.decode(errors='replace')}"
-        )
-
-    def assert_installed(self, directory, files):
-        for name, body in files.items():
-            path = directory / name
-            self.assertFalse(path.is_symlink(), f"{path} is still a symlink")
-            self.assertTrue(path.is_file(), f"{path} is not a regular file")
-            self.assertEqual(path.read_bytes(), body, f"{path} has the wrong content")
-
-    def assert_no_temp_left(self, directory=None):
-        leftovers = [p.name for p in self.tmpdir.iterdir() if p.name.startswith(TEMP_PREFIX)]
-        self.assertEqual(leftovers, [], "download staging directory left behind")
-        if directory is not None and directory.exists():
-            names = sorted(p.name for p in directory.iterdir())
-            self.assertTrue(set(names) <= set(NAMES), f"unexpected entries in {directory}: {names}")
-
-    @staticmethod
-    def snapshot(directory):
-        state = {}
-        for name in NAMES:
-            st = os.stat(directory / name, follow_symlinks=False)
-            state[name] = (st.st_mtime_ns, st.st_ino, (directory / name).read_bytes())
-        return state
+class InstallerContract(InstallerBase):
+    """Behaviour both installers share; a runner mixin says how to run one."""
 
     # --- sources ------------------------------------------------------------
 
@@ -205,6 +43,7 @@ class InstallerContract:
         files = configs("checkout")
         result = self.install(self.checkout(files))
         self.assert_installed(self.home, files)
+        self.assert_recorded(self.home, files)
         self.assertEqual(self.server.requests, [])
         out = result.stdout.decode()
         for name in NAMES:
@@ -237,18 +76,17 @@ class InstallerContract:
         # which other users can write to on a shared /tmp.
         files = configs("served")
         self.server.publish("testref", files)
-        (self.tmpdir / "configs").mkdir()
-        for name, body in configs("planted").items():
-            (self.tmpdir / "configs" / name).write_bytes(body)
+        planted = configs("planted")
+        self.seed(self.tmpdir / "configs", planted)
         (self.tmpdir / ".git").mkdir()
         script = self.tmpdir / self.temp_copy_name
         shutil.copy2(REPO / self.script_name, script)
         self.install(script, self.prefix_flag, str(self.prefix))
         self.assert_installed(self.prefix, files)
-        self.assertEqual(
-            sorted(self.server.requests),
-            sorted(f"/base/testref/configs/{name}" for name in NAMES),
-        )
+        self.assert_recorded(self.prefix, files)
+        self.assertEqual(self.server.config_requests("testref"), sorted(
+            f"/base/testref/configs/{name}" for name in NAMES
+        ))
 
     def test_download_mode_fetches_the_ref_from_the_base_url(self):
         files = configs("served")
@@ -271,23 +109,22 @@ class InstallerContract:
 
     # --- replacing ----------------------------------------------------------
 
-    def test_replaces_regular_files(self):
-        self.prefix.mkdir()
-        for name, body in configs("old").items():
-            (self.prefix / name).write_bytes(body)
+    def test_replaces_files_it_installed_before(self):
+        self.install(self.checkout(configs("old"), "old"), self.prefix_flag, str(self.prefix))
         files = configs("new")
         result = self.install(self.checkout(files), self.prefix_flag, str(self.prefix))
         self.assert_installed(self.prefix, files)
+        self.assert_recorded(self.prefix, files)
         self.assertIn(f"updated {self.prefix / '.pymolrc'}", result.stdout.decode())
         self.assert_no_temp_left(self.prefix)
 
     def test_replaces_symlinks_without_writing_through_them(self):
-        self.prefix.mkdir()
-        targets = self.root / "targets"
-        targets.mkdir()
         old = configs("old")
-        for name, body in old.items():
-            (targets / name).write_bytes(body)
+        self.install(self.checkout(old, "old"), self.prefix_flag, str(self.prefix))
+        targets = self.root / "targets"
+        self.seed(targets, old)
+        for name in NAMES:
+            os.remove(self.prefix / name)
             self.symlink(str(targets / name), str(self.prefix / name))
         files = configs("new")
         self.install(self.checkout(files), self.prefix_flag, str(self.prefix))
@@ -295,16 +132,18 @@ class InstallerContract:
         for name, body in old.items():
             self.assertEqual((targets / name).read_bytes(), body, "wrote through a symlink")
 
-    def test_replaces_symlinks_even_when_their_content_is_current(self):
+    def test_leaves_symlinks_whose_content_is_current(self):
         files = configs("same")
         self.prefix.mkdir()
         targets = self.root / "targets"
-        targets.mkdir()
-        for name, body in files.items():
-            (targets / name).write_bytes(body)
+        self.seed(targets, files)
+        for name in NAMES:
             self.symlink(str(targets / name), str(self.prefix / name))
-        self.install(self.checkout(files), self.prefix_flag, str(self.prefix))
-        self.assert_installed(self.prefix, files)
+        result = self.install(self.checkout(files), self.prefix_flag, str(self.prefix))
+        self.assertIn("already current", result.stdout.decode())
+        for name in NAMES:
+            self.assertTrue((self.prefix / name).is_symlink(), f"{name} was replaced")
+        self.assert_recorded(self.prefix, files)
 
     def test_replaces_dangling_symlinks(self):
         self.prefix.mkdir()
@@ -322,13 +161,16 @@ class InstallerContract:
         files = configs("current")
         self.install(script, self.prefix_flag, str(self.prefix))
         self.assert_installed(self.prefix, files)
-        for name in NAMES:
-            os.utime(self.prefix / name, (OLD_MTIME, OLD_MTIME))
-        os.utime(self.prefix, (OLD_MTIME, OLD_MTIME))
+        self.assert_recorded(self.prefix, files)
+        record_dir = self.record_path(self.prefix, NAMES[0]).parent
+        self.age(*(self.prefix / name for name in NAMES), self.prefix)
+        self.age(*record_dir.iterdir(), record_dir)
         before = self.snapshot(self.prefix)
+        records = self.tree(self.state_root)
         result = self.install(script, self.prefix_flag, str(self.prefix))
         self.assertEqual(self.snapshot(self.prefix), before)
         self.assertEqual(os.stat(self.prefix).st_mtime_ns, OLD_MTIME * 10**9, "wrote into DIR")
+        self.assertEqual(self.tree(self.state_root), records, "rewrote a record")
         lines = result.stdout.decode().strip().splitlines()
         self.assertEqual(len(lines), 1, lines)
         self.assertIn("already current", lines[0])
@@ -342,16 +184,16 @@ class InstallerContract:
         self.check_second_run_writes_nothing(self.lone())
 
     def test_rewrites_only_the_changed_file(self):
-        files = configs("new")
-        self.prefix.mkdir()
-        (self.prefix / ".pymolrc").write_bytes(files[".pymolrc"])
-        (self.prefix / ".pymolrc.py").write_bytes(b"old\n")
-        os.utime(self.prefix / ".pymolrc", (OLD_MTIME, OLD_MTIME))
+        old = configs("old")
+        files = dict(old, **{".pymolrc.py": configs("new")[".pymolrc.py"]})
+        self.install(self.checkout(old, "old"), self.prefix_flag, str(self.prefix))
+        self.age(self.prefix / ".pymolrc")
         result = self.install(self.checkout(files), self.prefix_flag, str(self.prefix))
         self.assert_installed(self.prefix, files)
         self.assertEqual(os.stat(self.prefix / ".pymolrc").st_mtime_ns, OLD_MTIME * 10**9)
         lines = result.stdout.decode().strip().splitlines()
         self.assertEqual(lines, [f"PyMOLScripts: updated {self.prefix / '.pymolrc.py'}"])
+        self.assert_recorded(self.prefix, files)
 
     # --- failures -----------------------------------------------------------
 
@@ -360,7 +202,7 @@ class InstallerContract:
         self.server.publish("testref", {".pymolrc": files[".pymolrc"]})  # .py: 404
         self.prefix.mkdir()
         (self.prefix / ".pymolrc").write_bytes(b"old rc\n")
-        os.utime(self.prefix / ".pymolrc", (OLD_MTIME, OLD_MTIME))
+        self.age(self.prefix / ".pymolrc")
         result = self.run_installer(self.lone(), self.prefix_flag, str(self.prefix))
         self.assertEqual(result.returncode, 1, self.describe(result))
         self.assertEqual((self.prefix / ".pymolrc").read_bytes(), b"old rc\n")
@@ -368,6 +210,7 @@ class InstallerContract:
         self.assertFalse((self.prefix / ".pymolrc.py").exists())
         self.assertIn("/base/testref/configs/.pymolrc.py", result.stderr.decode())
         self.assertEqual(sorted(p.name for p in self.prefix.iterdir()), [".pymolrc"])
+        self.assertFalse(self.state_root.exists(), "wrote a record")
         self.assert_no_temp_left(self.prefix)
 
     def test_empty_download_is_an_error(self):
@@ -376,6 +219,7 @@ class InstallerContract:
         self.assertEqual(result.returncode, 1, self.describe(result))
         self.assertIn("empty", result.stderr.decode())
         self.assertFalse(self.prefix.exists())
+        self.assertFalse(self.state_root.exists(), "wrote a record")
         self.assert_no_temp_left()
 
     def test_destination_that_is_a_directory_is_an_error(self):
@@ -396,6 +240,7 @@ class InstallerContract:
         files = configs("new")
         self.install(self.checkout(files), self.prefix_flag, str(target))
         self.assert_installed(target, files)
+        self.assert_recorded(target, files)
         self.assertFalse((self.home / ".pymolrc").exists())
 
     def test_prefix_that_is_a_file_is_an_error(self):
@@ -416,38 +261,25 @@ class InstallerContract:
                 self.assertFalse((self.home / ".pymolrc").exists())
                 self.assertFalse((self.root / "relative").exists())
                 self.assertFalse(self.prefix.exists())
+                self.assertFalse(self.state_root.exists())
 
     def test_help_exits_0(self):
         result = self.run_installer(self.checkout(configs("new")), self.help_flag)
         self.assertEqual(result.returncode, 0, self.describe(result))
         self.assertIn(b"Usage:", result.stdout)
+        for word in (self.force_flag, ".pymolrc.local.pml", "3 stopped"):
+            self.assertIn(word.encode(), result.stdout)
         self.assertFalse((self.home / ".pymolrc").exists())
+        self.assertFalse(self.state_root.exists())
 
 
 @unittest.skipIf(ON_WINDOWS, "install.sh is the POSIX installer")
-class ShInstallerTests(InstallerContract, unittest.TestCase):
-    script_name = "install.sh"
-    prefix_flag = "--prefix"
-    help_flag = "--help"
-    temp_copy_name = "dotfiles-payload.AbC123"
-    usage_cases = (
-        ["--prefix"],
-        ["--prefix", ""],
-        ["--prefix="],
-        ["--prefix", "relative"],
-        ["--bogus"],
-        ["extra"],
-        ["--", "extra"],
-    )
-
-    def command(self, script, args):
-        return ["/bin/sh", str(script), *args]
-
+class ShInstallerTests(ShRunner, InstallerContract, unittest.TestCase):
     def restricted_path(self, *tools):
         """A PATH holding only what install.sh needs, plus `tools`."""
         bindir = self.root / "bin"
         bindir.mkdir(exist_ok=True)
-        for tool in ("cat", "mkdir", "mktemp", "mv", "od", "rm", *tools):
+        for tool in ("cat", "mkdir", "mktemp", "mv", "od", "rm", "tr", *tools):
             found = shutil.which(tool, path=self.env.get("PATH"))
             if found is None:
                 self.skipTest(f"{tool} not found")
@@ -475,19 +307,27 @@ class ShInstallerTests(InstallerContract, unittest.TestCase):
         self.assertEqual(len(self.server.requests), 2)
 
     def test_compares_without_cmp(self):
-        # Minimal images (Fedora, Rocky Linux) ship no diffutils, so no cmp.
+        # Minimal images (Fedora, Rocky Linux) ship no diffutils, so no cmp
+        # and no diff; a local edit still stops and --force still works.
         files = configs("current")
         script = self.checkout(files)
-        env = dict(self.env, PATH=self.restricted_path())
+        env = dict(self.env, PATH=self.restricted_path("cp", "date"))
         self.install(script, "--prefix", str(self.prefix), env=env)
         self.assert_installed(self.prefix, files)
         lines = self.install(script, "--prefix", str(self.prefix), env=env).stdout.decode().splitlines()
         self.assertEqual(len(lines), 1, lines)
         self.assertIn("already current", lines[0])
-        (self.prefix / ".pymolrc").write_bytes(files[".pymolrc"] + b"# edited\n")
-        lines = self.install(script, "--prefix", str(self.prefix), env=env).stdout.decode().splitlines()
-        self.assertEqual(lines, [f"PyMOLScripts: updated {self.prefix / '.pymolrc'}"])
+        edited = files[".pymolrc"] + b"# edited\n"
+        (self.prefix / ".pymolrc").write_bytes(edited)
+        result = self.stopped(script, "--prefix", str(self.prefix), env=env)
+        self.assertNotIn("diff -u", result.stderr.decode())
+        lines = self.install(script, "--prefix", str(self.prefix), "--force", env=env).stdout.decode().splitlines()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertTrue(lines[0].startswith(f"PyMOLScripts: updated {self.prefix / '.pymolrc'} "), lines)
         self.assert_installed(self.prefix, files)
+        backups = sorted(self.prefix.glob(".pymolrc.local-*"))
+        self.assertEqual(len(backups), 1, backups)
+        self.assertEqual(backups[0].read_bytes(), edited)
 
     def test_missing_download_tool_is_named(self):
         env = dict(self.env, PATH=self.restricted_path())
@@ -518,33 +358,7 @@ class ShInstallerTests(InstallerContract, unittest.TestCase):
             self.assertEqual(mode, 0o640, f"{name}: {oct(mode)}")
 
 
-class PowerShellContract(InstallerContract):
-    script_name = "install.ps1"
-    prefix_flag = "-Prefix"
-    help_flag = "-Help"
-    # pwsh -File needs the .ps1 extension; this is the README one-liner's name.
-    temp_copy_name = "PyMOLScripts-install-1234.ps1"
-    usage_cases = (
-        ["-Prefix"],
-        ["-Prefix", "relative"],
-        ["-Bogus"],
-        ["extra"],
-    )
-    exe = ""
-
-    def command(self, script, args):
-        return [
-            self.exe,
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(script),
-            *args,
-        ]
-
+class PowerShellContract(PowerShellRunner, InstallerContract):
     @unittest.skipUnless(ON_WINDOWS, "a dangling link has no type outside Windows")
     def test_dangling_directory_link_is_an_error(self):
         self.prefix.mkdir()
@@ -566,10 +380,6 @@ class PowerShellContract(InstallerContract):
         result = self.run_installer(self.checkout(configs("new")), env=env)
         self.assertEqual(result.returncode, 1, self.describe(result))
         self.assertIn(f"{var} is not set", result.stderr.decode())
-
-
-PWSH = shutil.which("pwsh")
-WINDOWS_POWERSHELL = shutil.which("powershell") if ON_WINDOWS else None
 
 
 @unittest.skipUnless(PWSH, "pwsh not found")
