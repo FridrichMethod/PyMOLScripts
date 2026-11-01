@@ -31,7 +31,9 @@
 # $legacy_ref, which is what the installer always wrote before.
 # --force overwrites local edits after copying each edited regular file to
 # DIR/<name>.local-YYYYmmddHHMMSS (plus -N when taken), a name PyMOL never
-# runs; an edited symlink is replaced and its target left untouched.
+# runs, as a hard link to a private copy, which never writes through a link
+# someone else put at that name; an edited symlink is replaced and its target
+# left untouched.
 # Host-only settings belong in DIR/.pymolrc.local.pml, which PyMOL runs after
 # both files and this installer never touches.
 #
@@ -339,17 +341,18 @@ classify() {
     action=edited
 }
 
-# store NAME / load NAME: keep classify's results for NAME, and get them back.
+# store NAME / load NAME: keep classify's results for NAME, and `kept`, the
+# backup of an edited file, and get them back.
 store() {
     case $1 in
-        .pymolrc) rc_action=$action rc_found=$found rc_link=$link rc_stale=$stale ;;
-        *) py_action=$action py_found=$found py_link=$link py_stale=$stale ;;
+        .pymolrc) rc_action=$action rc_found=$found rc_link=$link rc_stale=$stale rc_kept=$kept ;;
+        *) py_action=$action py_found=$found py_link=$link py_stale=$stale py_kept=$kept ;;
     esac
 }
 load() {
     case $1 in
-        .pymolrc) action=$rc_action found=$rc_found link=$rc_link stale=$rc_stale ;;
-        *) action=$py_action found=$py_found link=$py_link stale=$py_stale ;;
+        .pymolrc) action=$rc_action found=$rc_found link=$rc_link stale=$rc_stale kept=$rc_kept ;;
+        *) action=$py_action found=$py_found link=$py_link stale=$py_stale kept=$py_kept ;;
     esac
 }
 
@@ -358,6 +361,7 @@ writes=0 # files to write
 needed=0 # files or records to write
 for name in .pymolrc .pymolrc.py; do
     classify "$name"
+    kept=
     store "$name"
     case $action in
         edited) edited=1 writes=1 needed=1 ;;
@@ -437,19 +441,34 @@ fi
 # the run before anything in DIR changes.
 err=$(umask 077 && mkdir -p "$record_dir" 2>&1) || die "cannot create $record_dir: $err"
 
-# backup NAME: copy the edited DIR/NAME to a free DIR/NAME.local-<time>.
+# backup NAME: keep the edited DIR/NAME as a free DIR/NAME.local-<time>, and
+# set b_path to that name. Another user who can write to DIR could plant a
+# link at the name once it was found free, which a copy would follow; so the
+# copy is made in the private work directory, inside DIR and so on its file
+# system as the staged files are, and then hard-linked to the name: link(2)
+# neither follows nor replaces an entry that took the name meanwhile.
 backup() {
-    for tool in cp date; do
+    for tool in cp date ln; do
         command -v "$tool" >/dev/null 2>&1 || die "$tool not found; it is needed for --force"
     done
+    b_copy=$work/$1.local
+    err=$(cp -p "$dir/$1" "$b_copy" 2>&1) || die "cannot copy $dir/$1 to $b_copy: $err"
     b_base=$dir/$1.local-$(date +%Y%m%d%H%M%S) || die "date failed"
     b_path=$b_base
     b_n=0
-    while [ -e "$b_path" ] || [ -L "$b_path" ]; do
+    while :; do
+        if [ ! -e "$b_path" ] && [ ! -L "$b_path" ]; then
+            if err=$(ln "$b_copy" "$b_path" 2>&1); then
+                # Unless a directory, or a link to one, took the name and ln
+                # linked the copy inside it.
+                [ -L "$b_path" ] || [ ! -f "$b_path" ] || return 0
+            elif [ ! -e "$b_path" ] && [ ! -L "$b_path" ]; then
+                die "cannot keep $dir/$1 as $b_path: $err; --force needs hard links in $dir_shown to keep edited files, so nothing was replaced"
+            fi
+        fi
         b_n=$((b_n + 1))
         b_path=$b_base-$b_n
     done
-    err=$(cp -p "$dir/$1" "$b_path" 2>&1) || die "cannot copy $dir/$1 to $b_path: $err"
 }
 
 # unchanged NAME: DIR/NAME still holds what classify found there.
@@ -473,6 +492,16 @@ if [ "$writes" = 1 ]; then
         [ "$action" != current ] || continue
         err=$(cat "$src/$name" 2>&1 >"$work/$name") || die "cannot write $work/$name: $err"
     done
+    # Every backup before the first rename, so that a backup that fails
+    # stops the run with nothing replaced.
+    for name in .pymolrc .pymolrc.py; do
+        load "$name"
+        if [ "$action" = edited ] && [ "$link" = 0 ]; then
+            backup "$name"
+            kept=$b_path
+            store "$name"
+        fi
+    done
     for name in .pymolrc .pymolrc.py; do
         load "$name"
         [ "$action" != current ] || continue
@@ -483,8 +512,7 @@ if [ "$writes" = 1 ]; then
         elif [ "$link" = 1 ]; then
             verb=updated note=" (replaced a symlink; its target is untouched)"
         elif [ "$action" = edited ]; then
-            backup "$name"
-            verb=updated note=" (kept the edited file as $b_path)"
+            verb=updated note=" (kept the edited file as $kept)"
         else
             verb=updated
         fi

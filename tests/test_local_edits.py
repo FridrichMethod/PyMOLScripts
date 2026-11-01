@@ -423,6 +423,101 @@ class ShLocalEditTests(ShRunner, LocalEditContract, unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, self.describe(result))
 
+    def wrapped_path(self, body, *tools):
+        """A PATH on which each of `tools` first runs the sh code `body`, with
+        $last its last argument, $real_ln the real ln and $done a file that
+        does not exist yet, then the real tool, unless `body` exits."""
+        bindir = self.root / "wrapped"
+        bindir.mkdir()
+        real_ln = shutil.which("ln", path=self.env["PATH"])
+        for tool in tools:
+            real = shutil.which(tool, path=self.env["PATH"])
+            if real is None or real_ln is None:
+                self.skipTest(f"{tool} or ln not found")
+            script = bindir / tool
+            script.write_text(
+                "#!/bin/sh\n"
+                f"real_ln='{real_ln}' done='{self.root}/wrapped.done'\n"
+                'for last; do :; done\n'
+                f"{body}\n"
+                f"exec '{real}' \"$@\"\n"
+            )
+            script.chmod(0o755)
+        return f"{bindir}{os.pathsep}{self.env['PATH']}"
+
+    def force_while_a_link_is_planted(self, victim):
+        """Run --force while another user who can write to DIR (--prefix in a
+        group directory) plants a link to `victim` at the backup name between
+        the check that it is free and the copy: cp and ln play that user and
+        win, the first one asked to write a name directly in DIR finding the
+        link there. Check the backup and return the run."""
+        self.install_v1_then_publish_v2()
+        (self.prefix / ".pymolrc").write_bytes(self.edited)
+        plant = (
+            f"case ${{last#'{self.prefix}'/}} in\n"
+            '    "$last" | */*) ;;\n'
+            f"    *) [ -e \"$done\" ] || {{ : >\"$done\"; \"$real_ln\" -s '{victim}' \"$last\"; }} ;;\n"
+            "esac"
+        )
+        env = dict(self.env, PATH=self.wrapped_path(plant, "cp", "ln"))
+        result = self.install(self.lone(), "--prefix", str(self.prefix), "--force", env=env)
+        self.assertTrue((self.root / "wrapped.done").exists(), "nothing was planted")
+        self.assert_installed(self.prefix, self.v2)
+        planted = [p for p in self.backups(self.prefix) if p.is_symlink()]
+        self.assertEqual([os.readlink(p) for p in planted], [str(victim)])
+        backups = [p for p in self.backups(self.prefix) if not p.is_symlink()]
+        self.assertEqual([p.read_bytes() for p in backups], [self.edited])
+        self.assertTrue(backups[0].is_file())
+        self.assertIn(f"kept the edited file as {backups[0]})", result.stdout.decode())
+        return result
+
+    def test_force_backup_never_writes_through_a_link_planted_meanwhile(self):
+        victim = self.root / "victim"
+        victim.write_bytes(b"the runner's own file\n")
+        self.force_while_a_link_is_planted(victim)
+        self.assertEqual(victim.read_bytes(), b"the runner's own file\n", "wrote through the planted link")
+
+    def test_force_backup_skips_a_directory_link_planted_meanwhile(self):
+        # ln given a directory, or a link to one, links into it instead.
+        victim = self.root / "victim"
+        victim.mkdir()
+        (victim / ".pymolrc.local").write_bytes(b"the runner's own file\n")
+        self.force_while_a_link_is_planted(victim)
+        self.assertEqual(sorted(p.name for p in victim.iterdir()), [".pymolrc.local"])
+        self.assertEqual((victim / ".pymolrc.local").read_bytes(), b"the runner's own file\n")
+
+    def test_force_backup_takes_no_name_that_ln_linked_into(self):
+        # When that directory has no entry of the copy's name, ln succeeds
+        # without making the backup name a file of ours: the next name is used.
+        victim = self.root / "victim"
+        victim.mkdir()
+        self.force_while_a_link_is_planted(victim)
+
+    def test_force_without_hard_links_changes_nothing(self):
+        # The backup is linked into DIR, which needs a file system with hard
+        # links; without them --force stops before anything is replaced.
+        # .pymolrc.py is edited and comes second, so .pymolrc, which is only
+        # updated, would be replaced first if backups were made in turn.
+        self.install_v1_then_publish_v2()
+        (self.prefix / ".pymolrc.py").write_bytes(b"print('mine')\r\n")
+        record_dir = self.record_path(self.prefix, NAMES[0]).parent
+        self.age(*(self.prefix / name for name in NAMES))
+        self.age(*record_dir.iterdir(), record_dir)
+        records = self.tree(self.state_root)
+
+        def entries():  # DIR's own mtime shows the work directory that came and went
+            return {k: v for k, v in self.tree(self.prefix).items() if k != "."}
+
+        before = entries()
+        refuse = 'echo "ln: failed to create hard link \'$last\': Operation not permitted" >&2; exit 1'
+        env = dict(self.env, PATH=self.wrapped_path(refuse, "ln"))
+        result = self.run_installer(self.lone(), "--prefix", str(self.prefix), "--force", env=env)
+        self.assertEqual(result.returncode, 1, self.describe(result))
+        self.assertIn("hard link", result.stderr.decode())
+        self.assertEqual(entries(), before, "changed DIR")
+        self.assertEqual(self.tree(self.state_root), records, "wrote a record")
+        self.assert_no_temp_left(self.prefix)
+
     def test_record_dir_defaults_to_home_local_state(self):
         env = {k: v for k, v in self.env.items() if k != "XDG_STATE_HOME"}
         self.server.publish("testref", self.v1)

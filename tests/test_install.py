@@ -345,7 +345,7 @@ class ShInstallerTests(ShRunner, InstallerContract, unittest.TestCase):
         # and no diff; a local edit still stops and --force still works.
         files = configs("current")
         script = self.checkout(files)
-        env = dict(self.env, PATH=self.restricted_path("cp", "date"))
+        env = dict(self.env, PATH=self.restricted_path("cp", "date", "ln"))
         self.install(script, "--prefix", str(self.prefix), env=env)
         self.assert_installed(self.prefix, files)
         lines = self.install(script, "--prefix", str(self.prefix), env=env).stdout.decode().splitlines()
