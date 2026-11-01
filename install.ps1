@@ -312,7 +312,9 @@ function Backup-Edit([string]$Path) {
     return $backup
 }
 
-# The command that reruns this installer with -Force.
+# The command that reruns this installer with -Force. A download takes the
+# installer from main, as the README does, and only the configs from
+# PYMOLSCRIPTS_REF: the installer at an older ref has no -Force, or is none.
 function Get-OverrideCommand {
     $prefixArg = if ($null -ne $Prefix) { ' -Prefix ' + (ConvertTo-Quoted $Dir) } else { '' }
     if ($null -eq $Stage) {
@@ -325,7 +327,7 @@ function Get-OverrideCommand {
             $line += "`$env:$var = $(ConvertTo-Quoted $value); "
         }
     }
-    $url = ConvertTo-Quoted "$BaseUrl/$Ref/install.ps1"
+    $url = ConvertTo-Quoted "$BaseUrl/main/install.ps1"
     return $line + '$f = Join-Path ([IO.Path]::GetTempPath()) "PyMOLScripts-install-$PID.ps1"; ' +
         "Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -OutFile `$f $url; " +
         "$Shell -NoProfile -ExecutionPolicy Bypass -File `$f -Force$prefixArg; Remove-Item `$f"

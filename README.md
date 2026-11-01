@@ -35,7 +35,7 @@ To overwrite the edit instead, rerun with `--force`, for example
 curl -fsSL https://raw.githubusercontent.com/FridrichMethod/PyMOLScripts/main/install.sh | sh -s -- --force
 ```
 
-or, on Windows, the PowerShell line above with `-File $f -Force`. Each edited file is first copied to `~/.pymolrc.local-YYYYmmddHHMMSS` (or `~/.pymolrc.py.local-...`, with `-N` added when the name is taken), a name PyMOL never runs. An edited symlink is replaced without a copy, and its target is left untouched.
+or, on Windows, the PowerShell line above with `-File $f -Force`. The command the stopped run prints is this one with its `--prefix`, `PYMOLSCRIPTS_REF` and `PYMOLSCRIPTS_BASE_URL` added; it always runs the installer from `main`, since older ones have no `--force`, and downloads only the configs from `PYMOLSCRIPTS_REF`. Each edited file is first copied to `~/.pymolrc.local-YYYYmmddHHMMSS` (or `~/.pymolrc.py.local-...`, with `-N` added when the name is taken), a name PyMOL never runs. An edited symlink is replaced without a copy, and its target is left untouched.
 
 Files installed before the record existed have none. The first run records them without stopping when they match the new upstream copy, or update them when they match the configs at commit `41785ca`, which is all that earlier installs wrote; any other unrecorded file counts as a local edit.
 

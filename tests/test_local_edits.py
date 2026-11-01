@@ -66,6 +66,13 @@ class LocalEditContract(InstallerBase):
         self.assertTrue(lines, self.describe(result))
         return lines[-1].strip()
 
+    def publish_installers(self):
+        """The current installer at main and, at every ref the tests download
+        configs from, one from before --force existed, which rejects it."""
+        self.server.publish_script("main", self.script_name)
+        for ref in ("testref", "oldref"):
+            self.server.files[f"/base/{ref}/{self.script_name}"] = self.old_installer
+
     def override_env(self):
         """self.env with PYMOLSCRIPTS_REF and PYMOLSCRIPTS_BASE_URL pointing
         where the local server publishes nothing, so that a printed override
@@ -263,6 +270,23 @@ class LocalEditContract(InstallerBase):
         backups = self.backups(self.prefix)
         self.assertEqual([p.read_bytes() for p in backups], [self.edited])
 
+    def test_override_command_runs_the_current_installer_for_an_old_ref(self):
+        # An installer from before this one takes no --force (and before
+        # 09544c8 there is none to fetch), so the printed line must fetch the
+        # installer from main and only the configs from PYMOLSCRIPTS_REF.
+        env = dict(self.env, PYMOLSCRIPTS_REF="oldref")
+        self.server.publish("oldref", self.v1)
+        self.install(self.lone(), self.prefix_flag, str(self.prefix), env=env)
+        self.server.publish("oldref", self.v2)
+        (self.prefix / ".pymolrc").write_bytes(self.edited)
+        line = self.override_line(self.stopped(self.lone(), self.prefix_flag, str(self.prefix), env=env))
+        self.run_override(line)
+        self.assert_installed(self.prefix, self.v2)
+        self.assert_recorded(self.prefix, self.v2)
+        self.assertEqual([p.read_bytes() for p in self.backups(self.prefix)], [self.edited])
+        self.assertIn(f"{self.server.base_url}/main/{self.script_name}", line)
+        self.assertEqual(self.server.config_requests("main"), [])
+
     def test_checkout_override_command_names_the_script(self):
         self.install(self.checkout(self.v1, "old"), self.prefix_flag, str(self.prefix))
         (self.prefix / ".pymolrc").write_bytes(self.edited)
@@ -381,10 +405,18 @@ class LocalEditContract(InstallerBase):
 
 @unittest.skipIf(ON_WINDOWS, "install.sh is the POSIX installer")
 class ShLocalEditTests(ShRunner, LocalEditContract, unittest.TestCase):
+    # What every install.sh before --force existed does with it.
+    old_installer = (
+        b"#!/bin/sh\n"
+        b"for arg; do\n"
+        b"    case $arg in --force) echo \"install.sh: unknown option: $arg\" >&2; exit 2 ;; esac\n"
+        b"done\n"
+    )
+
     def run_override(self, line):
         if shutil.which("curl", path=self.env.get("PATH")) is None:
             self.skipTest("curl not found")
-        self.server.publish_script("testref", self.script_name)
+        self.publish_installers()
         result = subprocess.run(
             ["/bin/sh", "-c", line], env=self.override_env(), stdin=subprocess.DEVNULL,
             capture_output=True, timeout=180,
@@ -444,8 +476,15 @@ class ShLocalEditTests(ShRunner, LocalEditContract, unittest.TestCase):
 
 
 class PowerShellLocalEditContract(PowerShellRunner, LocalEditContract):
+    # What every install.ps1 before -Force existed does with it.
+    old_installer = (
+        b"foreach ($a in $args) {\n"
+        b"    if ($a -eq '-Force') { [Console]::Error.WriteLine(\"install.ps1: unknown option: $a\"); exit 2 }\n"
+        b"}\n"
+    )
+
     def run_override(self, line):
-        self.server.publish_script("testref", self.script_name)
+        self.publish_installers()
         result = subprocess.run(
             [self.exe, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", line],
             env=self.override_env(), stdin=subprocess.DEVNULL, capture_output=True, timeout=180,

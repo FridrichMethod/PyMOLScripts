@@ -368,7 +368,9 @@ done
 
 # --- stop for a local edit ---------------------------------------------------
 
-# The command that reruns this installer with --force.
+# The command that reruns this installer with --force. A download takes the
+# installer from main, as the README does, and only the configs from
+# PYMOLSCRIPTS_REF: the installer at an older ref has no --force, or is none.
 override_command() {
     if [ -z "$stage" ]; then
         case $0 in
@@ -377,9 +379,9 @@ override_command() {
         esac
     else
         if [ "$fetcher" = curl ]; then
-            o_cmd="curl -fsSL $(quote "$base_url/$ref/install.sh") |"
+            o_cmd="curl -fsSL $(quote "$base_url/main/install.sh") |"
         else
-            o_cmd="wget -qO- $(quote "$base_url/$ref/install.sh") |"
+            o_cmd="wget -qO- $(quote "$base_url/main/install.sh") |"
         fi
         if [ -n "${PYMOLSCRIPTS_REF:-}" ]; then
             o_cmd="$o_cmd PYMOLSCRIPTS_REF=$(quote "$PYMOLSCRIPTS_REF")"
