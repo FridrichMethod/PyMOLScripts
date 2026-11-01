@@ -425,6 +425,22 @@ class PwshInstallerTests(PowerShellContract, unittest.TestCase):
 class WindowsPowerShellInstallerTests(PowerShellContract, unittest.TestCase):
     exe = WINDOWS_POWERSHELL or ""
 
+    def test_checkout_mode_with_pwsh_modules_on_the_module_path(self):
+        # Windows PowerShell started by a program that pwsh started (python
+        # under a pwsh CI step, say) inherits pwsh's PSModulePath, so a cmdlet
+        # it autoloads, such as Get-Acl, comes from PowerShell 7's module and
+        # fails to load. The ownership check must not depend on one.
+        modules = Path(PWSH).resolve().parent / "Modules" if PWSH else None
+        if modules is None or not (modules / "Microsoft.PowerShell.Security").is_dir():
+            self.skipTest("no PowerShell 7 Microsoft.PowerShell.Security module")
+        env = {k: v for k, v in self.env.items() if k.upper() != "PSMODULEPATH"}
+        inherited = [v for k, v in self.env.items() if k.upper() == "PSMODULEPATH"]
+        env["PSModulePath"] = os.pathsep.join([str(modules), *inherited])
+        files = configs("checkout")
+        self.install(self.checkout(files), self.prefix_flag, str(self.prefix), env=env)
+        self.assert_installed(self.prefix, files)
+        self.assertEqual(self.server.requests, [])
+
 
 if __name__ == "__main__":
     unittest.main()

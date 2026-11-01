@@ -132,13 +132,28 @@ function Test-Link([string]$Path) {
 # $Path is no link and belongs to the user running this script: on Windows
 # its owner is this user or the owner this user's new files get (the
 # Administrators group in an elevated session on Windows Server); elsewhere
-# its uid is the one id -u prints.
+# its uid is the one id -u prints. An owner it cannot read is not the user's,
+# and the note says why.
 $Uid = $null
 function Test-Mine([string]$Path) {
     if (Test-Link $Path) { return $false }
     try {
         if ($OnWindows) {
-            $owner = (Get-Acl -LiteralPath $Path).GetOwner([Security.Principal.SecurityIdentifier])
+            if ($PSVersionTable.PSEdition -eq 'Desktop') {
+                # .NET Framework reads the owner itself. Get-Acl would autoload
+                # Microsoft.PowerShell.Security, which fails when PSModulePath
+                # lists PowerShell 7's modules first, as it does in a Windows
+                # PowerShell started by a program that pwsh started.
+                $sections = [Security.AccessControl.AccessControlSections]::Owner
+                $acl = if ([IO.Directory]::Exists($Path)) {
+                    [IO.Directory]::GetAccessControl($Path, $sections)
+                } else {
+                    [IO.File]::GetAccessControl($Path, $sections)
+                }
+            } else {
+                $acl = Get-Acl -LiteralPath $Path
+            }
+            $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
             $me = [Security.Principal.WindowsIdentity]::GetCurrent()
             return ($null -ne $owner) -and (($owner -eq $me.User) -or ($owner -eq $me.Owner))
         }
@@ -146,6 +161,7 @@ function Test-Mine([string]$Path) {
         $owner = [string](Get-Item -LiteralPath $Path -Force).UnixStat.UserId
         return ($script:Uid -ne '') -and ($owner -eq $script:Uid)
     } catch {
+        [Console]::Error.WriteLine("${Prog}: note: cannot read the owner of ${Path}: $($_.Exception.Message)")
         return $false
     }
 }
