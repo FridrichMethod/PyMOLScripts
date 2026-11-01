@@ -66,6 +66,17 @@ class LocalEditContract(InstallerBase):
         self.assertTrue(lines, self.describe(result))
         return lines[-1].strip()
 
+    def override_env(self):
+        """self.env with PYMOLSCRIPTS_REF and PYMOLSCRIPTS_BASE_URL pointing
+        where the local server publishes nothing, so that a printed override
+        line works only when it sets both itself. Unsetting them instead
+        would let a broken line fall back to the real base URL."""
+        return dict(
+            self.env,
+            PYMOLSCRIPTS_REF="wrongref",
+            PYMOLSCRIPTS_BASE_URL=f"{self.server.base_url}/wrong",
+        )
+
     # --- recording ----------------------------------------------------------
 
     def test_install_records_what_it_wrote(self):
@@ -375,7 +386,7 @@ class ShLocalEditTests(ShRunner, LocalEditContract, unittest.TestCase):
             self.skipTest("curl not found")
         self.server.publish_script("testref", self.script_name)
         result = subprocess.run(
-            ["/bin/sh", "-c", line], env=self.env, stdin=subprocess.DEVNULL,
+            ["/bin/sh", "-c", line], env=self.override_env(), stdin=subprocess.DEVNULL,
             capture_output=True, timeout=180,
         )
         self.assertEqual(result.returncode, 0, self.describe(result))
@@ -437,7 +448,7 @@ class PowerShellLocalEditContract(PowerShellRunner, LocalEditContract):
         self.server.publish_script("testref", self.script_name)
         result = subprocess.run(
             [self.exe, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", line],
-            env=self.env, stdin=subprocess.DEVNULL, capture_output=True, timeout=180,
+            env=self.override_env(), stdin=subprocess.DEVNULL, capture_output=True, timeout=180,
         )
         self.assertEqual(result.returncode, 0, self.describe(result))
 
