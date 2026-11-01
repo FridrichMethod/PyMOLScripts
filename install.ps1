@@ -5,10 +5,13 @@
 #
 #   pwsh -NoProfile -File install.ps1 [-Prefix DIR]
 #
-# Source: the configs\ directory next to this script when it holds both files,
-# otherwise both are downloaded with Invoke-WebRequest from
+# Source: the configs\ directory next to this script when the script is named
+# install.ps1, sits in a git checkout (.git next to it) and configs\ holds both
+# files; otherwise both are downloaded with Invoke-WebRequest from
 #   $env:PYMOLSCRIPTS_BASE_URL (default https://raw.githubusercontent.com/FridrichMethod/PyMOLScripts)
 #   /$env:PYMOLSCRIPTS_REF (default main)/configs/<name>
+# A downloaded copy run from the temp directory therefore never installs a
+# configs\ directory that something else put next to it.
 #
 # The same command installs and updates; there is no state file. A file whose
 # installed copy is already a regular file with identical content is left
@@ -177,10 +180,14 @@ try {
         }
 
         # --- source ------------------------------------------------------------
+        # Run from a file named install.ps1 in a git checkout: install its configs.
         $Src = $null
-        if ($PSScriptRoot) {
-            $checkout = [IO.Path]::Combine($PSScriptRoot, 'configs')
-            if ([IO.File]::Exists([IO.Path]::Combine($checkout, '.pymolrc')) -and
+        if ($PSCommandPath -and [IO.Path]::GetFileName($PSCommandPath) -eq 'install.ps1') {
+            $root = [IO.Path]::GetDirectoryName($PSCommandPath)
+            $git = [IO.Path]::Combine($root, '.git')
+            $checkout = [IO.Path]::Combine($root, 'configs')
+            if (([IO.Directory]::Exists($git) -or [IO.File]::Exists($git)) -and
+                [IO.File]::Exists([IO.Path]::Combine($checkout, '.pymolrc')) -and
                 [IO.File]::Exists([IO.Path]::Combine($checkout, '.pymolrc.py'))) {
                 $Src = $checkout
             }

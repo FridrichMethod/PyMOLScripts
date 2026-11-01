@@ -94,6 +94,8 @@ class InstallerContract:
     prefix_flag = ""
     help_flag = ""
     usage_cases = ()
+    # The name dotfiles' old payload hook gave a downloaded copy in $TMPDIR.
+    temp_copy_name = ""
 
     def command(self, script, args):
         raise NotImplementedError
@@ -127,10 +129,12 @@ class InstallerContract:
         )
         self.env = env
 
-    def checkout(self, files, name="checkout"):
+    def checkout(self, files, name="checkout", git=True):
         """A fake clone: the installer next to configs/ holding `files`."""
         top = self.root / name
         (top / "configs").mkdir(parents=True)
+        if git:
+            (top / ".git").mkdir()
         shutil.copy2(REPO / self.script_name, top / self.script_name)
         for fname, body in files.items():
             (top / "configs" / fname).write_bytes(body)
@@ -206,6 +210,7 @@ class InstallerContract:
         for name in NAMES:
             self.assertIn(f"installed {self.home / name}", out)
 
+    @unittest.skipUnless((REPO / ".git").exists(), "not a git checkout")
     def test_repository_checkout_installs_its_configs_byte_for_byte(self):
         self.install(REPO / self.script_name, self.prefix_flag, str(self.prefix))
         self.assert_installed(
@@ -219,6 +224,31 @@ class InstallerContract:
         script = self.checkout({".pymolrc": b"local only\n"})
         self.install(script, self.prefix_flag, str(self.prefix))
         self.assert_installed(self.prefix, files)
+
+    def test_configs_without_git_beside_the_installer_download_instead(self):
+        files = configs("served")
+        self.server.publish("testref", files)
+        script = self.checkout(configs("unversioned"), git=False)
+        self.install(script, self.prefix_flag, str(self.prefix))
+        self.assert_installed(self.prefix, files)
+
+    def test_temp_copy_ignores_configs_planted_beside_it(self):
+        # dotfiles used to stage the downloaded installer directly in $TMPDIR,
+        # which other users can write to on a shared /tmp.
+        files = configs("served")
+        self.server.publish("testref", files)
+        (self.tmpdir / "configs").mkdir()
+        for name, body in configs("planted").items():
+            (self.tmpdir / "configs" / name).write_bytes(body)
+        (self.tmpdir / ".git").mkdir()
+        script = self.tmpdir / self.temp_copy_name
+        shutil.copy2(REPO / self.script_name, script)
+        self.install(script, self.prefix_flag, str(self.prefix))
+        self.assert_installed(self.prefix, files)
+        self.assertEqual(
+            sorted(self.server.requests),
+            sorted(f"/base/testref/configs/{name}" for name in NAMES),
+        )
 
     def test_download_mode_fetches_the_ref_from_the_base_url(self):
         files = configs("served")
@@ -399,6 +429,7 @@ class ShInstallerTests(InstallerContract, unittest.TestCase):
     script_name = "install.sh"
     prefix_flag = "--prefix"
     help_flag = "--help"
+    temp_copy_name = "dotfiles-payload.AbC123"
     usage_cases = (
         ["--prefix"],
         ["--prefix", ""],
@@ -491,6 +522,8 @@ class PowerShellContract(InstallerContract):
     script_name = "install.ps1"
     prefix_flag = "-Prefix"
     help_flag = "-Help"
+    # pwsh -File needs the .ps1 extension; this is the README one-liner's name.
+    temp_copy_name = "PyMOLScripts-install-1234.ps1"
     usage_cases = (
         ["-Prefix"],
         ["-Prefix", "relative"],

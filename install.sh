@@ -5,9 +5,12 @@
 #   curl -fsSL https://raw.githubusercontent.com/FridrichMethod/PyMOLScripts/main/install.sh | sh
 #   ./install.sh [--prefix DIR]          # from a clone: install the clone's copies
 #
-# Source: the configs/ directory next to this script when it holds both files,
-# otherwise both are downloaded (curl, or wget without curl) from
+# Source: the configs/ directory next to this script when the script is named
+# install.sh, sits in a git checkout (.git next to it) and configs/ holds both
+# files; otherwise both are downloaded (curl, or wget without curl) from
 #   ${PYMOLSCRIPTS_BASE_URL:-https://raw.githubusercontent.com/FridrichMethod/PyMOLScripts}/${PYMOLSCRIPTS_REF:-main}/configs/<name>
+# A downloaded copy run from a shared directory such as /tmp therefore never
+# installs a configs/ directory that someone else put next to it.
 #
 # The same command installs and updates; there is no state file. A file whose
 # installed copy is already a regular file with identical content is left
@@ -137,21 +140,18 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
+# Run from a file named install.sh in a git checkout: install its configs.
 # Piped (curl | sh) or run via `sh -s`, $0 names the shell, not this file.
 src=
-case ${0##*/} in
-    sh | -sh | ash | bash | -bash | dash | ksh | mksh | posh | yash | zsh | busybox) ;;
-    *)
-        case $0 in
-            */*) script_dir=${0%/*} ;;
-            *) script_dir=. ;;
-        esac
-        if [ -f "$0" ] && [ -f "$script_dir/configs/.pymolrc" ] &&
-            [ -f "$script_dir/configs/.pymolrc.py" ]; then
-            src=$script_dir/configs
-        fi
-        ;;
+case $0 in
+    install.sh) script_dir=. ;;
+    */install.sh) script_dir=${0%/*} ;;
+    *) script_dir= ;;
 esac
+if [ -n "$script_dir" ] && [ -f "$0" ] && [ -e "$script_dir/.git" ] &&
+    [ -f "$script_dir/configs/.pymolrc" ] && [ -f "$script_dir/configs/.pymolrc.py" ]; then
+    src=$script_dir/configs
+fi
 if [ -z "$src" ]; then
     if command -v curl >/dev/null 2>&1; then
         fetcher=curl
