@@ -585,6 +585,97 @@ class PowerShellLocalEditContract(PowerShellRunner, LocalEditContract):
             env=self.override_env(), stdin=subprocess.DEVNULL, capture_output=True, timeout=180,
         )
         self.assertEqual(result.returncode, 0, self.describe(result))
+        return result
+
+    def run_probe(self, code, *args):
+        """Run the PowerShell `code` with `args` as $args; return its stdout."""
+        probe = self.root / "probe.ps1"
+        probe.write_text(code, encoding="utf-8-sig")  # 5.1 reads BOM-less scripts as ANSI
+        result = subprocess.run(
+            [self.exe, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(probe), *map(str, args)],
+            env=self.env, stdin=subprocess.DEVNULL, capture_output=True, timeout=180,
+        )
+        self.assertEqual(result.returncode, 0, self.describe(result))
+        return result.stdout.decode().strip()
+
+    def parse(self, line):
+        """How PowerShell parses `line`: (errors, statements, commands)."""
+        src = self.root / "line.txt"
+        src.write_text(line, encoding="utf-8-sig")
+        out = self.run_probe(
+            "$tokens = $null; $errors = $null\n"
+            "$ast = [Management.Automation.Language.Parser]::ParseInput(\n"
+            "    [IO.File]::ReadAllText($args[0]), [ref]$tokens, [ref]$errors)\n"
+            "$commands = $ast.FindAll({ $args[0] -is [Management.Automation.Language.CommandAst] }, $true)\n"
+            "[Console]::Out.WriteLine(\"$(@($errors).Count) $($ast.EndBlock.Statements.Count) $(@($commands).Count)\")\n",
+            src,
+        )
+        return tuple(int(n) for n in out.split())
+
+    # A directory name that ends a PowerShell single-quoted string at U+2019
+    # unless the quoting doubles it, and then injects a command.
+    ODD = "John\u2019s PyMOL \u2019; Write-Output INJECTED; \u2019"
+
+    @unittest.skipIf(ON_WINDOWS, "redirected Windows console output is not UTF-8")
+    def test_printed_checkout_commands_quote_every_single_quote(self):
+        # PowerShell ends a single-quoted string at U+2018, U+2019, U+201A
+        # and U+201B as well as at U+0027.
+        prefix = self.root / f"prefix {self.ODD}"
+        self.install(self.checkout(self.v1, f"old {self.ODD}"), self.prefix_flag, str(prefix))
+        (prefix / ".pymolrc").write_bytes(self.edited)
+        script = self.checkout(self.v2, f"new {self.ODD}")
+        result = self.stopped(script, self.prefix_flag, str(prefix))
+        line = self.override_line(result)
+        self.assertEqual(self.parse(line), (0, 1, 1), line)
+        hints = [s.split("see the edit: ", 1)[1] for s in result.stderr.decode().splitlines() if "see the edit: " in s]
+        self.assertEqual(len(hints), 1, self.describe(result))
+        self.assertEqual(self.parse(hints[0])[:2], (0, 1), hints[0])
+        run = self.run_override(line)
+        self.assertNotIn("INJECTED", (run.stdout + run.stderr).decode().split(), "ran the injected command")
+        self.assert_installed(prefix, self.v2)
+        self.assertEqual([p.read_bytes() for p in self.backups(prefix)], [self.edited])
+
+    @unittest.skipIf(ON_WINDOWS, "redirected Windows console output is not UTF-8")
+    def test_printed_download_command_quotes_every_single_quote(self):
+        prefix = self.root / f"prefix {self.ODD}"
+        self.server.publish("testref", self.v1)
+        self.install(self.lone(), self.prefix_flag, str(prefix))
+        self.server.publish("testref", self.v2)
+        (prefix / ".pymolrc").write_bytes(self.edited)
+        line = self.override_line(self.stopped(self.lone(), self.prefix_flag, str(prefix)))
+        # Two $env: assignments, $f = ..., Invoke-WebRequest, the installer, Remove-Item.
+        self.assertEqual(self.parse(line)[:2], (0, 6), line)
+        run = self.run_override(line)
+        self.assertNotIn("INJECTED", (run.stdout + run.stderr).decode().split(), "ran the injected command")
+        self.assert_installed(prefix, self.v2)
+        self.assertEqual([p.read_bytes() for p in self.backups(prefix)], [self.edited])
+
+    def test_quoting_round_trips_every_single_quote_character(self):
+        # The quoting function alone, so that every PowerShell checks it.
+        text = (REPO / self.script_name).read_text(encoding="utf-8")
+        found = re.findall(r"(?ms)^function ConvertTo-Quoted\b.*?^\}", text)
+        self.assertEqual(len(found), 1, "ConvertTo-Quoted not found")
+        function = self.root / "quote.ps1"
+        function.write_text(found[0], encoding="utf-8-sig")
+        words = ["plain", "it's", "John\u2019s PyMOL", self.ODD, "\u2018\u201a\u201b'\u2019 \"$HOME\" `t"]
+        listing = self.root / "words.txt"
+        listing.write_text("\n".join(words) + "\n", encoding="utf-8-sig")
+        out = self.run_probe(
+            "$ErrorActionPreference = 'Stop'\n"
+            ". ([ScriptBlock]::Create([IO.File]::ReadAllText($args[0])))\n"
+            "$words = [IO.File]::ReadAllLines($args[1])\n"
+            "for ($i = 0; $i -lt $words.Count; $i++) {\n"
+            "    $quoted = ConvertTo-Quoted $words[$i]\n"
+            "    $tokens = $null; $errors = $null\n"
+            "    $ast = [Management.Automation.Language.Parser]::ParseInput($quoted, [ref]$tokens, [ref]$errors)\n"
+            "    $value = @(if (@($errors).Count -eq 0) { & $ast.GetScriptBlock() })\n"
+            "    $same = $value.Count -eq 1 -and [string]$value[0] -ceq $words[$i]\n"
+            "    [Console]::Out.WriteLine(\"$i $(@($errors).Count) $same\")\n"
+            "}\n",
+            function, listing,
+        )
+        self.assertEqual(out.splitlines(), [f"{i} 0 True" for i in range(len(words))])
 
     @unittest.skipUnless(ON_WINDOWS, "LOCALAPPDATA holds the record on Windows only")
     def test_record_dir_is_localappdata_on_windows(self):

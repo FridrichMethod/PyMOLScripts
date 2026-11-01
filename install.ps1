@@ -230,9 +230,11 @@ function Get-Message($ErrorRecord) {
     return ($ErrorRecord.Exception.Message -replace '\s+', ' ').Trim().TrimEnd('.')
 }
 
-# $Word as a PowerShell single-quoted string.
+# $Word as a PowerShell single-quoted string. PowerShell ends one at U+2018,
+# U+2019, U+201A and U+201B as well as at U+0027, and the escaping function
+# of PowerShell's own code generation doubles each of them.
 function ConvertTo-Quoted([string]$Word) {
-    return "'" + ($Word -replace "'", "''") + "'"
+    return "'" + [Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent($Word) + "'"
 }
 
 # Where the records of what was installed into $Dir live.
