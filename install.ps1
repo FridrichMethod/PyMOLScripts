@@ -6,12 +6,15 @@
 #   pwsh -NoProfile -File install.ps1 [-Prefix DIR] [-Force]
 #
 # Source: the configs\ directory next to this script when the script is named
-# install.ps1, sits in a git checkout (.git next to it) and configs\ holds both
-# files; otherwise both are downloaded with Invoke-WebRequest from
+# install.ps1, sits in a git checkout (.git next to it), configs\ holds both
+# files, and .git, configs\ and both files belong to the user running it (on
+# Windows: owned by that user, or by the owner that user's new files get) and
+# are not links; otherwise both are downloaded with Invoke-WebRequest from
 #   $env:PYMOLSCRIPTS_BASE_URL (default https://raw.githubusercontent.com/FridrichMethod/PyMOLScripts)
 #   /$env:PYMOLSCRIPTS_REF (default main)/configs/<name>
-# A downloaded copy run from the temp directory therefore never installs a
-# configs\ directory that something else put next to it.
+# A copy run from a shared directory such as C:\Temp or /tmp therefore never
+# installs a .git and configs\ that someone else put next to it, whatever its
+# name.
 #
 # The same command installs and updates. After writing a file it keeps a copy
 # of the bytes it wrote, the record, at
@@ -124,6 +127,27 @@ function Test-AbsolutePath([string]$Path) {
 function Test-Link([string]$Path) {
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Ignore
     return $null -ne $item -and @('SymbolicLink', 'Junction') -contains [string]$item.LinkType
+}
+
+# $Path is no link and belongs to the user running this script: on Windows
+# its owner is this user or the owner this user's new files get (the
+# Administrators group in an elevated session on Windows Server); elsewhere
+# its uid is the one id -u prints.
+$Uid = $null
+function Test-Mine([string]$Path) {
+    if (Test-Link $Path) { return $false }
+    try {
+        if ($OnWindows) {
+            $owner = (Get-Acl -LiteralPath $Path).GetOwner([Security.Principal.SecurityIdentifier])
+            $me = [Security.Principal.WindowsIdentity]::GetCurrent()
+            return ($null -ne $owner) -and (($owner -eq $me.User) -or ($owner -eq $me.Owner))
+        }
+        if ($null -eq $script:Uid) { $script:Uid = ([string](& id -u)).Trim() }
+        $owner = [string](Get-Item -LiteralPath $Path -Force).UnixStat.UserId
+        return ($script:Uid -ne '') -and ($owner -eq $script:Uid)
+    } catch {
+        return $false
+    }
 }
 
 # A directory, a link to one, or a directory-type link whose target is gone:
@@ -392,10 +416,18 @@ try {
             $root = [IO.Path]::GetDirectoryName($PSCommandPath)
             $git = [IO.Path]::Combine($root, '.git')
             $checkout = [IO.Path]::Combine($root, 'configs')
+            $checkoutFiles = @($Names | ForEach-Object { [IO.Path]::Combine($checkout, $_) })
             if (([IO.Directory]::Exists($git) -or [IO.File]::Exists($git)) -and
-                [IO.File]::Exists([IO.Path]::Combine($checkout, '.pymolrc')) -and
-                [IO.File]::Exists([IO.Path]::Combine($checkout, '.pymolrc.py'))) {
-                $Src = $checkout
+                [IO.File]::Exists($checkoutFiles[0]) -and [IO.File]::Exists($checkoutFiles[1])) {
+                # In a shared directory such as C:\Temp or /tmp anyone can create
+                # .git and configs beside a copy of this script, so only the
+                # user's own are a checkout.
+                if ((Test-Mine $git) -and (Test-Mine $checkout) -and
+                    (Test-Mine $checkoutFiles[0]) -and (Test-Mine $checkoutFiles[1])) {
+                    $Src = $checkout
+                } else {
+                    [Console]::Error.WriteLine("${Prog}: note: ignoring ${checkout}: it, its files and .git must be yours and no symlinks; downloading instead")
+                }
             }
         }
         if ($null -eq $Src) {

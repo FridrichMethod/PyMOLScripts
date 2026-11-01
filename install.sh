@@ -6,11 +6,13 @@
 #   ./install.sh [--prefix DIR] [--force]   # from a clone: install the clone's copies
 #
 # Source: the configs/ directory next to this script when the script is named
-# install.sh, sits in a git checkout (.git next to it) and configs/ holds both
-# files; otherwise both are downloaded (curl, or wget without curl) from
+# install.sh, sits in a git checkout (.git next to it), configs/ holds both
+# files, and .git, configs/ and both files belong to the user running it and
+# are not symlinks; otherwise both are downloaded (curl, or wget without curl)
+# from
 #   ${PYMOLSCRIPTS_BASE_URL:-https://raw.githubusercontent.com/FridrichMethod/PyMOLScripts}/${PYMOLSCRIPTS_REF:-main}/configs/<name>
-# A downloaded copy run from a shared directory such as /tmp therefore never
-# installs a configs/ directory that someone else put next to it.
+# A copy run from a shared directory such as /tmp therefore never installs a
+# .git and configs/ that someone else put next to it, whatever its name.
 #
 # The same command installs and updates. After writing a file it keeps a copy
 # of the bytes it wrote, the record, at
@@ -212,6 +214,22 @@ text() {
     tr -d '\015' <"$1" | od -An -v -tx1
 }
 
+# mine PATH: PATH is no symlink and belongs to the user running this script.
+# POSIX test has no -O, so the owner comes from ls -n and is compared with id.
+uid=
+mine() {
+    if [ ! -e "$1" ] || [ -L "$1" ]; then
+        return 1
+    fi
+    [ -n "$uid" ] || uid=$(id -u 2>/dev/null) || return 1
+    # Only the third field, the numeric owner, is read; names do not matter.
+    # shellcheck disable=SC2012
+    m_owner=$(ls -dn -- "$1" 2>/dev/null | {
+        read -r _ _ m_uid _ && printf '%s' "$m_uid"
+    })
+    [ -n "$uid" ] && [ "$m_owner" = "$uid" ]
+}
+
 # --- source ----------------------------------------------------------------
 
 work=    # temporary directory inside $dir, created only when a file changes
@@ -248,7 +266,15 @@ case $0 in
 esac
 if [ -n "$script_dir" ] && [ -f "$0" ] && [ -e "$script_dir/.git" ] &&
     [ -f "$script_dir/configs/.pymolrc" ] && [ -f "$script_dir/configs/.pymolrc.py" ]; then
-    src=$script_dir/configs
+    # In a shared directory such as /tmp anyone can create .git and configs/
+    # beside a copy of this script, so only the user's own are a checkout.
+    if mine "$script_dir/.git" && mine "$script_dir/configs" &&
+        mine "$script_dir/configs/.pymolrc" && mine "$script_dir/configs/.pymolrc.py"; then
+        src=$script_dir/configs
+    else
+        printf '%s: note: ignoring %s: it, its files and .git must be yours and no symlinks; downloading instead\n' \
+            "$prog" "$script_dir/configs" >&2
+    fi
 fi
 if [ -z "$src" ]; then
     if command -v curl >/dev/null 2>&1; then

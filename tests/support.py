@@ -205,11 +205,36 @@ class InstallerBase:
         self.assertEqual(result.stdout, b"", "a stopped run reported a change")
         return result
 
-    def symlink(self, target, link):
+    def symlink(self, target, link, target_is_directory=False):
         try:
-            os.symlink(target, link)
+            os.symlink(target, link, target_is_directory)
         except (OSError, NotImplementedError) as exc:
             self.skipTest(f"cannot create symlinks here: {exc}")
+
+    def foreign_env(self, *paths):
+        """An env in which `paths` belong to another user, as entries someone
+        else created in a shared directory would.
+
+        A test cannot create files another user owns, so on Linux and macOS
+        the installer is shown a fake id(1) that reports another uid. On
+        Windows the owner of each path becomes SYSTEM, which an elevated
+        session (CI) may set; anywhere else the test is skipped.
+        """
+        if ON_WINDOWS:
+            for path in paths:
+                result = subprocess.run(
+                    ["icacls", str(path), "/setowner", "*S-1-5-18"],
+                    stdin=subprocess.DEVNULL, capture_output=True, timeout=60,
+                )
+                if result.returncode != 0:
+                    self.skipTest(f"cannot change the owner of {path}: {self.describe(result)}")
+            return self.env
+        bindir = self.root / "other-user"
+        bindir.mkdir(exist_ok=True)
+        fake = bindir / "id"
+        fake.write_text(f"#!/bin/sh\necho {os.geteuid() + 1}\n")
+        fake.chmod(0o755)
+        return dict(self.env, PATH=f"{bindir}{os.pathsep}{self.env['PATH']}")
 
     # --- records ------------------------------------------------------------
 

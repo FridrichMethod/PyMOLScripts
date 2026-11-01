@@ -88,6 +88,40 @@ class InstallerContract(InstallerBase):
             f"/base/testref/configs/{name}" for name in NAMES
         ))
 
+    def test_installer_ignores_a_checkout_that_others_planted_beside_it(self):
+        # Saved under its own name (curl -O) into a shared directory such as
+        # /tmp or C:\Temp, where anyone can create .git and configs/ first.
+        files = configs("served")
+        self.server.publish("testref", files)
+        planted = self.tmpdir / "configs"
+        self.seed(planted, configs("planted"))
+        (self.tmpdir / ".git").mkdir()
+        script = self.tmpdir / self.script_name
+        shutil.copy2(REPO / self.script_name, script)
+        env = self.foreign_env(
+            self.tmpdir / ".git", planted, *(planted / name for name in NAMES)
+        )
+        result = self.install(script, self.prefix_flag, str(self.prefix), env=env)
+        self.assert_installed(self.prefix, files)
+        self.assert_recorded(self.prefix, files)
+        self.assertEqual(self.server.config_requests("testref"), sorted(
+            f"/base/testref/configs/{name}" for name in NAMES
+        ))
+        self.assertIn(str(planted), result.stderr.decode())
+
+    def test_symlinked_configs_beside_the_installer_download_instead(self):
+        # A link someone else owns could be pointed elsewhere after the check.
+        files = configs("served")
+        self.server.publish("testref", files)
+        real = self.root / "elsewhere"
+        self.seed(real, configs("linked"))
+        top = self.root / "linked"
+        (top / ".git").mkdir(parents=True)
+        shutil.copy2(REPO / self.script_name, top / self.script_name)
+        self.symlink(str(real), str(top / "configs"), target_is_directory=True)
+        self.install(top / self.script_name, self.prefix_flag, str(self.prefix))
+        self.assert_installed(self.prefix, files)
+
     def test_download_mode_fetches_the_ref_from_the_base_url(self):
         files = configs("served")
         self.server.publish("testref", files)
@@ -279,7 +313,7 @@ class ShInstallerTests(ShRunner, InstallerContract, unittest.TestCase):
         """A PATH holding only what install.sh needs, plus `tools`."""
         bindir = self.root / "bin"
         bindir.mkdir(exist_ok=True)
-        for tool in ("cat", "mkdir", "mktemp", "mv", "od", "rm", "tr", *tools):
+        for tool in ("cat", "id", "ls", "mkdir", "mktemp", "mv", "od", "rm", "tr", *tools):
             found = shutil.which(tool, path=self.env.get("PATH"))
             if found is None:
                 self.skipTest(f"{tool} not found")
