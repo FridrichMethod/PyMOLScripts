@@ -310,9 +310,20 @@ class InstallerBase:
 
     @staticmethod
     def age(*paths):
-        """Give `paths` an old mtime, so that any later write shows."""
+        """Give `paths` an old mtime, so that any later write shows.
+
+        A link gets its own mtime, not its target's. Windows cannot set a
+        link's own times (os.utime raises NotImplementedError for
+        follow_symlinks=False there), so a link is refused on Windows.
+        """
+        times = (OLD_MTIME, OLD_MTIME)
         for path in paths:
-            os.utime(path, (OLD_MTIME, OLD_MTIME), follow_symlinks=False)
+            if os.utime in os.supports_follow_symlinks:
+                os.utime(path, times, follow_symlinks=False)
+            elif os.path.islink(path):
+                raise AssertionError(f"cannot age the link {path} itself here")
+            else:
+                os.utime(path, times)
 
 
 class ShRunner:
